@@ -136,6 +136,28 @@ class Chatbot:
 
         return parser.parse_args(args)
 
+    def main2(self, args=None):
+        """
+        Launch the training and/or the interactive mode
+        """
+        print('Welcome to DeepQA v0.1 !')
+        print()
+        print('TensorFlow detected: v{}'.format(tf.__version__))
+
+        # General initialisation
+
+        self.args = self.parseArgs(args)
+
+        if not self.args.rootDir:
+            self.args.rootDir = os.getcwd()  # Use the current working directory
+
+        #tf.logging.set_verbosity(tf.logging.INFO) # DEBUG, INFO, WARN (default), ERROR, or FATAL
+
+        self.loadModelParams()  # Update the self.modelDir and self.globStep, for now, not used when loading Model (but need to be called before _getSummaryName)
+        print(self.args)
+
+        self.textData = TextData(self.args)
+
     def main(self, args=None):
         """
         Launch the training and/or the interactive mode

@@ -32,6 +32,7 @@ from chatbot.corpus.opensubsdata import OpensubsData
 from chatbot.corpus.scotusdata import ScotusData
 from chatbot.corpus.ubuntudata import UbuntuData
 from chatbot.corpus.lightweightdata import LightweightData
+from chatbot.corpus.baobaodata import BaobaoData
 
 
 class Batch:
@@ -55,6 +56,7 @@ class TextData:
         ('scotus', ScotusData),
         ('ubuntu', UbuntuData),
         ('lightweight', LightweightData),
+        ('baobao',BaobaoData),
     ])
 
     @staticmethod
