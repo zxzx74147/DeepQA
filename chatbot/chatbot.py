@@ -183,6 +183,7 @@ class Chatbot:
         # TODO: For now, the model are trained for a specific dataset (because of the maxLength which define the
         # vocabulary). Add a compatibility mode which allow to launch a model trained on a different vocabulary (
         # remap the word2id/id2word variables).
+        print(self.args)
         if self.args.createDataset:
             print('Dataset created! Thanks for using this program')
             return  # No need to go further
