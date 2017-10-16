@@ -17,6 +17,7 @@ import os
 import jieba
 from os import listdir
 from os.path import isfile, join
+import re
 
 """
 Load data from a dataset of baobao data
@@ -43,6 +44,14 @@ class BaobaoData:
         """
         fileName = [f for f in listdir(folderName) if isfile(join(folderName, f))]
 
+        filtrate = re.compile(u'[^\u4E00-\u9FA5A-Za-z0-9_\s]')
+        emoji_pattern = re.compile(u"(\ud83d[\ude00-\ude4f])|"  # emoticons
+                                   u"(\ud83c[\udf00-\uffff])|"  # symbols & pictographs (1 of 2)
+                                   u"(\ud83d[\u0000-\uddff])|"  # symbols & pictographs (2 of 2)
+                                   u"(\ud83d[\ude80-\udeff])|"  # transport & map symbols
+                                   u"(\ud83c[\udde0-\uddff])"  # flags (iOS)
+                                   "+", flags=re.UNICODE)
+
         linesBuffer = []
         with open(folderName+os.sep+fileName[0], 'r', encoding='utf-8') as f:
             last_cid=0
@@ -51,7 +60,11 @@ class BaobaoData:
                 if len(temp) < 4:
                     continue
                 cid=int(temp[0])
+                if len(temp[3])<2:
+                    continue
                 temp[3]=' '.join(jieba.cut(temp[3]))
+                temp[3] = filtrate.sub(r'', temp[3])  # 过滤掉标点符号
+                temp[3] = emoji_pattern.sub(r'', temp[3])  # 过滤emoji
                 if cid==last_cid:
                     linesBuffer.append({"time": temp[1],"uid": temp[2],"text": temp[3]})
                 else:
