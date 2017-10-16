@@ -26,6 +26,7 @@ import os  # Checking file existance
 import random
 import string
 import collections
+import  jieba
 
 from chatbot.corpus.cornelldata import CornellData
 from chatbot.corpus.opensubsdata import OpensubsData
@@ -589,6 +590,7 @@ class TextData:
         if sentence == '':
             return None
 
+        sentence = ' '.join(jieba.cut(sentence))
         # First step: Divide the sentence in token
         tokens = nltk.word_tokenize(sentence)
         if len(tokens) > self.args.maxLength:
