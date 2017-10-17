@@ -60,11 +60,11 @@ class BaobaoData:
                 if len(temp) < 4:
                     continue
                 cid=int(temp[0])
-                if len(temp[3])<2:
-                    continue
                 temp[3]=' '.join(jieba.cut(temp[3])).rstrip()
                 temp[3] = filtrate.sub(r'', temp[3])  # 过滤掉标点符号
                 temp[3] = emoji_pattern.sub(r'', temp[3])  # 过滤emoji
+                if len(temp[3])<3:
+                    continue
                 if cid==last_cid:
                     linesBuffer.append({"time": temp[1],"uid": temp[2],"text": temp[3]})
                 else:
