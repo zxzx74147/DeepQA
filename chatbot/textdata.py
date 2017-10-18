@@ -28,6 +28,7 @@ import string
 import collections
 import  jieba
 
+from chatbot.corpus.baobaowhisperdata import BaobaoDataWhisper
 from chatbot.corpus.cornelldata import CornellData
 from chatbot.corpus.opensubsdata import OpensubsData
 from chatbot.corpus.scotusdata import ScotusData
@@ -58,6 +59,7 @@ class TextData:
         ('ubuntu', UbuntuData),
         ('lightweight', LightweightData),
         ('baobao',BaobaoData),
+        ('baobaowhisper', BaobaoDataWhisper),
     ])
 
     @staticmethod
