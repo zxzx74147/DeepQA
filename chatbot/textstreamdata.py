@@ -229,7 +229,7 @@ class TextStreamData:
         # filenames = tf.placeholder(tf.string, shape=[None])
         dataset = tf.contrib.data.TFRecordDataset([self.filteredSamplesDataPath])
         dataset = dataset.map(self.decodeQAExample)  # Parse the record into tensors.
-        # dataset = dataset.repeat()  # Repeat the input indefinitely.
+        dataset = dataset.repeat()  # Repeat the input indefinitely.
         # dataset = dataset.batch(self.args.batchSize)
 
         dataset = dataset.padded_batch(1, padded_shapes=([self.args.maxLengthEnco],[self.args.maxLengthDeco],[self.args.maxLengthDeco],[self.args.maxLengthDeco]),
@@ -336,6 +336,7 @@ class TextStreamData:
         datasetExist = os.path.isfile(self.filteredSamplesPath)
         if not datasetExist:
             self.filterFromFull()
+            self.saveDataset(self.filteredSamplesPath)
         else:
             self.loadDataset(self.filteredSamplesPath)
         # datasetExist = os.path.isfile(self.filteredSamplesPath)
