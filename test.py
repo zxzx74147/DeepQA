@@ -22,8 +22,13 @@ Use python 3
 """
 
 from chatbot import chatbot
+from chatbot.chatbot import Chatbot
+from chatbot.corpus.baobaowhisperstreamdata import BaobaoWhisperStreamData
+import linecache
 
+from chatbot.textstreamdata import TextStreamData
 
 if __name__ == "__main__":
-    chatbot = chatbot.Chatbot()
-    chatbot.main2()
+    args=['--corpus','baobaowhisper']
+    chatbot = Chatbot()
+    chatbot.main2(args)

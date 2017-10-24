@@ -32,7 +32,17 @@ from tensorflow.python import debug as tf_debug
 
 from chatbot.textdata import TextData
 from chatbot.model import Model
+from chatbot.textstreamdata import TextStreamData
 
+
+class Batch:
+    """Struct containing batches info
+    """
+    def __init__(self):
+        self.encoderSeqs = []
+        self.decoderSeqs = []
+        self.targetSeqs = []
+        self.weights = []
 
 class Chatbot:
     """
@@ -156,7 +166,10 @@ class Chatbot:
         self.loadModelParams()  # Update the self.modelDir and self.globStep, for now, not used when loading Model (but need to be called before _getSummaryName)
         print(self.args)
 
-        self.textData = TextData(self.args)
+        self.textData = TextStreamData(self.args)
+        self.textData.getBatches()
+
+
 
     def main(self, args=None):
         """
@@ -177,7 +190,7 @@ class Chatbot:
 
         self.loadModelParams()  # Update the self.modelDir and self.globStep, for now, not used when loading Model (but need to be called before _getSummaryName)
 
-        self.textData = TextData(self.args)
+        self.textData = TextStreamData(self.args)
         # TODO: Add a mode where we can force the input of the decoder // Try to visualize the predictions for
         # each word of the vocabulary / decoder input
         # TODO: For now, the model are trained for a specific dataset (because of the maxLength which define the
@@ -248,49 +261,111 @@ class Chatbot:
 
         # Specific training dependent loading
 
-        self.textData.makeLighter(self.args.ratioDataset)  # Limit the number of training samples
+        # self.textData.makeLighter(self.args.ratioDataset)  # Limit the number of training samples
 
         mergedSummaries = tf.summary.merge_all()  # Define the summary operator (Warning: Won't appear on the tensorboard graph)
         if self.globStep == 0:  # Not restoring from previous run
             self.writer.add_graph(sess.graph)  # First time only
 
-        # If restoring a model, restore the progression bar ? and current batch ?
+        iterator, next_batch = self.textData.getBatches()
+
+        sess.run(iterator.initializer)
 
         print('Start training (press Ctrl+C to save and exit)...')
+        for e in range(self.args.numEpochs):
+            print()
+            print("----- Epoch {}/{} ; (lr={}) -----".format(e + 1, self.args.numEpochs, self.args.learningRate))
 
-        try:  # If the user exit while training, we still try to save the model
-            for e in range(self.args.numEpochs):
+            tic = datetime.datetime.now()
+            with tqdm(total=self.textData.getSampleSize()/self.args.batchSize, desc='train') as pbar:
+                try:
+                    E_T = []
+                    D_T = []
+                    T_T = []
+                    W_T = []
+                    batch_size =0
+                    while(True):
 
-                print()
-                print("----- Epoch {}/{} ; (lr={}) -----".format(e+1, self.args.numEpochs, self.args.learningRate))
+                        Q, D,T,W = sess.run(next_batch)
+                        E_T.append(Q[0][::-1])
+                        D_T.append(D[0])
+                        T_T.append(T[0])
+                        W_T.append(W[0])
+                        batch_size+=1
+                        if batch_size>=self.args.batchSize:
+                            E_T=np.transpose(np.asarray(E_T))
+                            T_T = np.transpose(np.asarray(T_T))
+                            D_T = np.transpose(np.asarray(D_T))
+                            W_T = np.transpose(np.asarray(W_T))
+                            this_batch = Batch()
+                            this_batch.encoderSeqs=E_T
+                            this_batch.decoderSeqs = D_T
+                            this_batch.targetSeqs = T_T
+                            this_batch.weights=W_T
+                            ops, feedDict = self.model.step(this_batch)
+                            assert len(ops) == 2  # training, loss
+                            _, loss, summary = sess.run(ops + (mergedSummaries,), feedDict)
+                            self.writer.add_summary(summary, self.globStep)
+                            self.globStep += 1
 
-                batches = self.textData.getBatches()
+                            # Output training status
+                            if self.globStep % 100 == 0:
+                                perplexity = math.exp(float(loss)) if loss < 300 else float("inf")
+                                tqdm.write("----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, loss, perplexity))
 
-                # TODO: Also update learning parameters eventually
+                            # Checkpoint
+                            if self.globStep % self.args.saveEvery == 0:
+                                            self._saveSession(sess)
+                            E_T = []
+                            D_T = []
+                            T_T = []
+                            W_T = []
+                            batch_size=0
+                            pbar.update(1)
+                        # print('E:' + ' '.join(str(x) for x in reversed(Q[0])))
+                        # print('D:'+' '.join(str(x) for x in D[0]))
+                        # print('T:' + ' '.join(str(x) for x in T[0]))
+                        # print('W:' + ' '.join(str(x) for x in W[0]))
+                except tf.errors.OutOfRangeError:
+                    print("End of training dataset.")
 
-                tic = datetime.datetime.now()
-                for nextBatch in tqdm(batches, desc="Training"):
-                    # Training pass
-                    ops, feedDict = self.model.step(nextBatch)
-                    assert len(ops) == 2  # training, loss
-                    _, loss, summary = sess.run(ops + (mergedSummaries,), feedDict)
-                    self.writer.add_summary(summary, self.globStep)
-                    self.globStep += 1
+        # If restoring a model, restore the progression bar ? and current batch ?
 
-                    # Output training status
-                    if self.globStep % 100 == 0:
-                        perplexity = math.exp(float(loss)) if loss < 300 else float("inf")
-                        tqdm.write("----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, loss, perplexity))
 
-                    # Checkpoint
-                    if self.globStep % self.args.saveEvery == 0:
-                        self._saveSession(sess)
 
-                toc = datetime.datetime.now()
-
-                print("Epoch finished in {}".format(toc-tic))  # Warning: Will overflow if an epoch takes more than 24 hours, and the output isn't really nicer
-        except (KeyboardInterrupt, SystemExit):  # If the user press Ctrl+C while testing progress
-            print('Interruption detected, exiting the program...')
+        # try:  # If the user exit while training, we still try to save the model
+        #     for e in range(self.args.numEpochs):
+        #
+        #         print()
+        #         print("----- Epoch {}/{} ; (lr={}) -----".format(e+1, self.args.numEpochs, self.args.learningRate))
+        #
+        #         batches = self.textData.getBatches()
+        #
+        #         # TODO: Also update learning parameters eventually
+        #
+        #         tic = datetime.datetime.now()
+        #         for nextBatch in tqdm(batches, desc="Training"):
+        #             # Training pass
+        #             ops, feedDict = self.model.step(nextBatch)
+        #             assert len(ops) == 2  # training, loss
+        #             _, loss, summary = sess.run(ops + (mergedSummaries,), feedDict)
+        #             self.writer.add_summary(summary, self.globStep)
+        #             self.globStep += 1
+        #
+        #             # Output training status
+        #             if self.globStep % 100 == 0:
+        #                 perplexity = math.exp(float(loss)) if loss < 300 else float("inf")
+        #                 tqdm.write("----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, loss, perplexity))
+        #
+        #             # Checkpoint
+        #             if self.globStep % self.args.saveEvery == 0:
+        #                 self._saveSession(sess)
+        #
+        #         toc = datetime.datetime.now()
+        #
+        #         print("Epoch finished in {}".format(toc-tic))  # Warning: Will overflow if an epoch takes more than 24 hours, and the output isn't really nicer
+        # except (KeyboardInterrupt, SystemExit):  # If the user press Ctrl+C while testing progress
+        #     print('Interruption detected, exiting the program...')
 
         self._saveSession(sess)  # Ultimate saving before complete exit
 

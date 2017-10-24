@@ -18,15 +18,19 @@ import jieba
 from os import listdir
 from os.path import isfile, join
 import re
-
-
+import tensorflow as tf
+import linecache
+from tqdm import tqdm  # Progress bar
+import subprocess
+import time
 """
 Load data from a dataset of baobao data
 
 
 """
 
-class BaobaoDataWhisper:
+
+class BaobaoWhisperStreamData:
     """
     """
 
@@ -35,8 +39,12 @@ class BaobaoDataWhisper:
         Args:
             lightweightFile (string): file containing our lightweight-formatted corpus
         """
-        self.conversations = []
+        self.conversations = None
         self.loadLines(baobaoFile )
+
+    def linecount(self,path):
+        count = int(subprocess.check_output(["wc",path]).split()[0])
+        return count
 
     def loadLines(self, folderName):
         """
@@ -44,7 +52,13 @@ class BaobaoDataWhisper:
             fileName (str): file to load
         """
         fileName = [f for f in listdir(folderName) if (isfile(join(folderName, f)) and f.endswith('txt'))]
-
+        src_file = folderName+os.sep+fileName[0]
+        dst_file = folderName+os.sep+fileName[0]+'.chat'
+        self.conversations = dst_file
+        if os.path.isfile(dst_file):
+            return
+        count = self.linecount(src_file)
+        print(count)
         filtrate = re.compile(u'[^\u4E00-\u9FA5A-Za-z0-9_\s]')
         emoji_pattern = re.compile(u"(\ud83d[\ude00-\ude4f])|"  # emoticons
                                    u"(\ud83c[\udf00-\uffff])|"  # symbols & pictographs (1 of 2)
@@ -55,33 +69,25 @@ class BaobaoDataWhisper:
 
         linesBuffer = []
         lastQ = ''
-        with open(folderName+os.sep+fileName[0], 'r', encoding='utf-8') as f:
-            last_cid=0
+        print('Read baobao whisper data:')
+        with open(src_file, 'r', encoding='utf-8') as f, open(dst_file, 'w', encoding='utf-8')as fo,tqdm(total=count,desc='PreProcess') as pbar:
             for line in f:
+                pbar.update(1)
                 if line.startswith("Q: "):
                     line = line.replace("Q: ",'')
                     line = ' '.join(jieba.cut(line)).rstrip()
                     line = filtrate.sub(r'', line)  # 过滤掉标点符号
                     line = emoji_pattern.sub(r'', line)  # 过滤emoji
                     if lastQ!=line:
-                        # self.conversations.append({"lines": linesBuffer})
-                        # linesBuffer=[]
                         lastQ = line
-                    linesBuffer.append({"text": line})
+                    fo.write(line+'\n')
                 if line.startswith("A: "):
                     line = line.replace("A: ", '')
                     line = ' '.join(jieba.cut(line)).rstrip()
                     line = filtrate.sub(r'', line)  # 过滤掉标点符号
                     line = emoji_pattern.sub(r'', line)  # 过滤emoji
-                    linesBuffer.append({"text": line})
-                    self.conversations.append({"lines": linesBuffer})
-                    linesBuffer = []
-
-
-
-            if len(linesBuffer):  # Eventually flush the last conversation
-                self.conversations.append({"lines": linesBuffer})
-                linesBuffer = []
-
+                    fo.write(line+'\n')
+                    fo.write("//new_chat" + '\n')
     def getConversations(self):
+        print('path='+self.conversations)
         return self.conversations

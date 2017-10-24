@@ -27,8 +27,11 @@ import random
 import string
 import collections
 import  jieba
+import subprocess
+import tensorflow as tf
 
 from chatbot.corpus.baobaowhisperdata import BaobaoDataWhisper
+from chatbot.corpus.baobaowhisperstreamdata import BaobaoWhisperStreamData
 from chatbot.corpus.cornelldata import CornellData
 from chatbot.corpus.opensubsdata import OpensubsData
 from chatbot.corpus.scotusdata import ScotusData
@@ -46,8 +49,7 @@ class Batch:
         self.targetSeqs = []
         self.weights = []
 
-
-class TextData:
+class TextStreamData:
     """Dataset class
     Warning: No vocabulary limit
     """
@@ -59,7 +61,7 @@ class TextData:
         ('ubuntu', UbuntuData),
         ('lightweight', LightweightData),
         ('baobao',BaobaoData),
-        ('baobaowhisper', BaobaoDataWhisper),
+        ('baobaowhisper', BaobaoWhisperStreamData),
     ])
 
     @staticmethod
@@ -68,7 +70,7 @@ class TextData:
         Return:
             list<string>: the supported corpus
         """
-        return list(TextData.availableCorpus.keys())
+        return list(TextStreamData.availableCorpus.keys())
 
     def __init__(self, args):
         """Load all conversations
@@ -77,12 +79,19 @@ class TextData:
         """
         # Model parameters
         self.args = args
-
+        self.count = 0
         # Path variables
         self.corpusDir = os.path.join(self.args.rootDir, 'data', self.args.corpus)
         basePath = self._constructBasePath()
-        self.fullSamplesPath = basePath + '.pkl'  # Full sentences length/vocab
-        self.filteredSamplesPath = basePath + '-length{}-filter{}-vocabSize{}.pkl'.format(
+        self.fullSamplesPath = basePath + '.plk'  # Full sentences length/vocab
+        self.fullSamplesDataPath = basePath + '.tfrecord'  # Full sentences length/vocab
+        self.filteredSamplesPath = basePath + '-length{}-filter{}-vocabSize{}.plk'.format(
+            self.args.maxLength,
+            self.args.filterVocab,
+            self.args.vocabularySize,
+        )  # Sentences/vocab filtered for this model
+
+        self.filteredSamplesDataPath = basePath + '-length{}-filter{}-vocabSize{}.tfrecord'.format(
             self.args.maxLength,
             self.args.filterVocab,
             self.args.vocabularySize,
@@ -92,6 +101,8 @@ class TextData:
         self.goToken = -1  # Start of sequence
         self.eosToken = -1  # End of sequence
         self.unknownToken = -1  # Word dropped from vocabulary
+        self.GO = tf.constant([self.goToken])
+        self.EOS = tf.constant([self.eosToken])
 
         self.trainingSamples = []  # 2d array containing each question and his answer [[input,target]]
 
@@ -108,7 +119,7 @@ class TextData:
             self.playDataset()
 
     def _printStats(self):
-        print('Loaded {}: {} words, {} QA'.format(self.args.corpus, len(self.word2id), len(self.trainingSamples)))
+        print('Loaded {}: {} words, {} QA'.format(self.args.corpus, len(self.word2id), self.count))
 
     def _constructBasePath(self):
         """Return the name of the base prefix of the current dataset
@@ -132,6 +143,8 @@ class TextData:
         """
         print('Shuffling the dataset...')
         random.shuffle(self.trainingSamples)
+
+
 
     def _createBatch(self, samples):
         """Create a single batch from the list of sample. The batch size is automatically defined by the number of
@@ -213,29 +226,83 @@ class TextData:
         Return:
             list<Batch>: Get a list of the batches for the next epoch
         """
-        self.shuffle()
+        # filenames = tf.placeholder(tf.string, shape=[None])
+        dataset = tf.contrib.data.TFRecordDataset([self.filteredSamplesDataPath])
+        dataset = dataset.map(self.decodeQAExample)  # Parse the record into tensors.
+        # dataset = dataset.repeat()  # Repeat the input indefinitely.
+        # dataset = dataset.batch(self.args.batchSize)
 
-        batches = []
+        dataset = dataset.padded_batch(1, padded_shapes=([self.args.maxLengthEnco],[self.args.maxLengthDeco],[self.args.maxLengthDeco],[self.args.maxLengthDeco]),
+                                       padding_values=(self.padToken,self.padToken,self.padToken,0))
+        dataset = dataset.shuffle(buffer_size=10000)
+        iterator = dataset.make_initializable_iterator()
 
-        def genNextSamples():
-            """ Generator over the mini-batch training samples
-            """
-            for i in range(0, self.getSampleSize(), self.args.batchSize):
-                yield self.trainingSamples[i:min(i + self.args.batchSize, self.getSampleSize())]
+        next_batch = iterator.get_next()
 
-        # TODO: Should replace that by generator (better: by tf.queue)
+        return iterator,next_batch
 
-        for samples in genNextSamples():
-            batch = self._createBatch(samples)
-            batches.append(batch)
-        return batches
+        # with tf.Session() as sess,tqdm(total=self.count, desc='Filter') as pbar:  # 开始一个会话
+        #     init_op = tf.global_variables_initializer()
+        #     sess.run(iterator.initializer, feed_dict={filenames: [self.filteredSamplesDataPath]})
+        #     try:
+        #         E_T = [[]]
+        #         D_T = [[]]
+        #         T_T = [[]]
+        #         W_T = [[]]
+        #         batch_size =0
+        #         while(True):
+        #             pbar.update(1)
+        #             Q, D,T,W = sess.run(next_batch)
+        #             E_T.append(reversed(Q[0]))
+        #             D_T.append(reversed(D[0]))
+        #             T_T.append(reversed(T[0]))
+        #             W_T.append(reversed(W[0]))
+        #             batch_size+=1
+        #             if batch_size>=self.args.batchSize:
+        #                 E_T=np.transpose(E_T)
+        #                 T_T = np.transpose(T_T)
+        #                 D_T = np.transpose(D_T)
+        #                 W_T = np.transpose(W_T)
+        #
+        #                 E_T = [[]]
+        #                 D_T = [[]]
+        #                 T_T = [[]]
+        #                 W_T = [[]]
+        #             # print('E:' + ' '.join(str(x) for x in reversed(Q[0])))
+        #             # print('D:'+' '.join(str(x) for x in D[0]))
+        #             # print('T:' + ' '.join(str(x) for x in T[0]))
+        #             # print('W:' + ' '.join(str(x) for x in W[0]))
+        #     except tf.errors.OutOfRangeError:
+        #         print("End of training dataset.")
+
+
+
+        # # Q_batch, A_batch = tf.train.shuffle_batch([Q, A], batch_size=self.args.batchSize,
+        # #                                                    capacity=self.count, min_after_dequeue=self.args.batchSize*10, num_threads=2)
+        # #
+        # # self.shuffle()
+        # #
+        # # batches = []
+        # #
+        # # def genNextSamples():
+        # #     """ Generator over the mini-batch training samples
+        # #     """
+        # #     for i in range(0, self.getSampleSize(), self.args.batchSize):
+        # #         yield self.trainingSamples[i:min(i + self.args.batchSize, self.getSampleSize())]
+        # #
+        # # # TODO: Should replace that by generator (better: by tf.queue)
+        # #
+        # # for samples in genNextSamples():
+        # #     batch = self._createBatch(samples)
+        # #     batches.append(batch)
+        # return iterator
 
     def getSampleSize(self):
         """Return the size of the dataset
         Return:
             int: Number of training samples
         """
-        return len(self.trainingSamples)
+        return self.count
 
     def getVocabularySize(self):
         """Return the number of words present in the dataset
@@ -247,41 +314,66 @@ class TextData:
     def loadCorpus(self):
         """Load/create the conversations data
         """
+
+        datasetExist = os.path.isfile(self.fullSamplesPath)  # Try to construct the dataset from the preprocessed entry
+        if not datasetExist:
+            print('Constructing full dataset...')
+
+            optional = ''
+            if self.args.corpus == 'lightweight':
+                if not self.args.datasetTag:
+                    raise ValueError('Use the --datasetTag to define the lightweight file to use.')
+                optional = os.sep + self.args.datasetTag  # HACK: Forward the filename
+
+            # Corpus creation
+            corpusData = TextStreamData.availableCorpus[self.args.corpus](self.corpusDir + optional)
+            self.createFullCorpus(corpusData.getConversations())
+            self.saveDataset(self.fullSamplesPath)
+        else:
+            self.loadDataset(self.fullSamplesPath)
+
+        self._printStats()
         datasetExist = os.path.isfile(self.filteredSamplesPath)
-        if not datasetExist:  # First time we load the database: creating all files
-            print('Training samples not found. Creating dataset...')
-
-            datasetExist = os.path.isfile(self.fullSamplesPath)  # Try to construct the dataset from the preprocessed entry
-            if not datasetExist:
-                print('Constructing full dataset...')
-
-                optional = ''
-                if self.args.corpus == 'lightweight':
-                    if not self.args.datasetTag:
-                        raise ValueError('Use the --datasetTag to define the lightweight file to use.')
-                    optional = os.sep + self.args.datasetTag  # HACK: Forward the filename
-
-                # Corpus creation
-                corpusData = TextData.availableCorpus[self.args.corpus](self.corpusDir + optional)
-                self.createFullCorpus(corpusData.getConversations())
-                self.saveDataset(self.fullSamplesPath)
-            else:
-                self.loadDataset(self.fullSamplesPath)
-            self._printStats()
-
-            print('Filtering words (vocabSize = {} and wordCount > {})...'.format(
-                self.args.vocabularySize,
-                self.args.filterVocab
-            ))
-            self.filterFromFull()  # Extract the sub vocabulary for the given maxLength and filterVocab
-
-            # Saving
-            print('Saving dataset...')
-            self.saveDataset(self.filteredSamplesPath)  # Saving tf samples
+        if not datasetExist:
+            self.filterFromFull()
         else:
             self.loadDataset(self.filteredSamplesPath)
+        # datasetExist = os.path.isfile(self.filteredSamplesPath)
+        # if not datasetExist:  # First time we load the database: creating all files
+        #     print('Training samples not found. Creating dataset...')
+        #
+        #     datasetExist = os.path.isfile(self.fullSamplesPath)  # Try to construct the dataset from the preprocessed entry
+        #     if not datasetExist:
+        #         print('Constructing full dataset...')
+        #
+        #         optional = ''
+        #         if self.args.corpus == 'lightweight':
+        #             if not self.args.datasetTag:
+        #                 raise ValueError('Use the --datasetTag to define the lightweight file to use.')
+        #             optional = os.sep + self.args.datasetTag  # HACK: Forward the filename
+        #
+        #         # Corpus creation
+        #         corpusData = TextSteamData.availableCorpus[self.args.corpus](self.corpusDir + optional)
+        #         self.createFullCorpus(corpusData.getConversations())
+        #         self.saveDataset(self.fullSamplesPath)
+        #     else:
+        #         self.loadDataset(self.fullSamplesPath)
+        #     self._printStats()
+        #
+        #     print('Filtering words (vocabSize = {} and wordCount > {})...'.format(
+        #         self.args.vocabularySize,
+        #         self.args.filterVocab
+        #     ))
+        #     self.filterFromFull()  # Extract the sub vocabulary for the given maxLength and filterVocab
+        #
+        #     # Saving
+        #     print('Saving dataset...')
+        #     self.saveDataset(self.filteredSamplesPath)  # Saving tf samples
+        # else:
+            # self.loadDataset(self.filteredSamplesPath)
 
-        assert self.padToken == 0
+
+        # assert self.padToken == 0
 
     def saveDataset(self, filename):
         """Save samples to file
@@ -294,7 +386,8 @@ class TextData:
                 'word2id': self.word2id,
                 'id2word': self.id2word,
                 'idCount': self.idCount,
-                'trainingSamples': self.trainingSamples
+                'count':self.count,
+                # 'trainingSamples': self.trainingSamples
             }
             pickle.dump(data, handle, -1)  # Using the highest protocol available
 
@@ -310,12 +403,62 @@ class TextData:
             self.word2id = data['word2id']
             self.id2word = data['id2word']
             self.idCount = data.get('idCount', None)
-            self.trainingSamples = data['trainingSamples']
+            self.count = data['count']
+            # self.trainingSamples = data['trainingSamples']
 
             self.padToken = self.word2id['<pad>']
             self.goToken = self.word2id['<go>']
             self.eosToken = self.word2id['<eos>']
             self.unknownToken = self.word2id['<unknown>']  # Restore special words
+            self.GO = tf.constant([self.goToken])
+            self.EOS = tf.constant([self.eosToken])
+
+
+    def decodeQAExample(self,example_proto):
+        features = {'Q': tf.VarLenFeature( tf.int64),
+                    'A': tf.VarLenFeature( tf.int64),}
+        parsed_features = tf.parse_single_example(example_proto, features)
+        Q=tf.sparse_tensor_to_dense(parsed_features["Q"])
+        A=tf.sparse_tensor_to_dense(parsed_features["A"])
+        Q=tf.cast(Q, tf.int32)
+        A=tf.cast(A, tf.int32)
+
+        decoderSeq=tf.concat([self.GO,A,self.EOS],0)
+        targetSeq=tf.concat([A,self.EOS],0)
+        weight = tf.ones_like(targetSeq)
+        return Q,decoderSeq,targetSeq,weight
+
+
+        # # encoderSeq = list(reversed(Q))
+        # decoderSeq = tf.add([self.goToken],A)
+        # decoderSeq = tf.add(decoderSeq,[self.eosToken])
+        # # decoderSeq = [self.goToken] + A + [self.eosToken]
+        # targetSeq=tf.add(A,[self.eosToken])
+        # weight =targetSeq
+
+
+        # encoderSeq=[self.padToken] * (self.args.maxLengthEnco  - len(encoderSeq))+encoderSeq
+        # decoderSeq += [self.padToken] * (self.args.maxLengthDeco - len(decoderSeq))
+        # weight = [1.0] * len(targetSeq) + [0.0] * (self.args.maxLengthDeco - len(targetSeq))
+        # targetSeq = targetSeq+[self.padToken] * (self.args.maxLengthDeco - len(targetSeq))
+
+        # return encoderSeq,decoderSeq,weight,targetSeq
+
+    def decodeQA(self,filename):
+        reader = tf.TFRecordReader()
+
+        filename_queue = tf.train.string_input_producer([filename])  # 生成一个queue队列
+
+        _, serialized_example = reader.read(filename_queue)  # 返回文件名和文件
+        features = tf.parse_single_example(serialized_example,
+                                           features={
+                                               'Q': tf.VarLenFeature( tf.int64),
+                                               'A': tf.VarLenFeature( tf.int64),
+                                           })
+
+        Q = tf.sparse_tensor_to_dense(features['Q'])  # 在流中抛出Q张量
+        A = tf.sparse_tensor_to_dense(features['A'])  # 在流中抛出A张量
+        return Q, A
 
     def filterFromFull(self):
         """ Load the pre-processed full corpus and filter the vocabulary / sentences
@@ -352,17 +495,59 @@ class TextData:
                         self.idCount[w] -= 1
             return merged
 
-        newSamples = []
+
+        dst = self.filteredSamplesDataPath+".temp"
+        datasetExist = os.path.isfile(dst)
+        if not datasetExist:
+            Q, A = self.decodeQA(self.fullSamplesDataPath)
+            with tf.Session() as sess,tf.python_io.TFRecordWriter(dst) as writer ,\
+                    tqdm(total=self.count,desc='Filter') as pbar:  # 开始一个会话
+                init_op = tf.global_variables_initializer()
+                sess.run(init_op)
+                coord = tf.train.Coordinator()
+                threads = tf.train.start_queue_runners(coord=coord)
+                count = 0
+                for i in range(self.count):
+                    pbar.update(1)
+                    qustion, answer = sess.run([Q, A])  # 在会话中取出image和label
+                    if len(qustion)>10:
+                        for w in qustion:
+                            self.idCount[w] -= 1
+                    if len(answer)>10:
+                        for w in answer:
+                            self.idCount[w] -= 1
+
+                     # Filter wrong samples (if one of the list is empty)
+                    if qustion.size>10:
+                        qustion=[]
+                    if answer.size>10:
+                        answer=[]
+                    example = tf.train.Example(features=tf.train.Features(feature={
+                            "Q": tf.train.Feature(int64_list=tf.train.Int64List(value=qustion)),
+                            'A': tf.train.Feature(int64_list=tf.train.Int64List(value=answer))
+                    }))  # example对象对label和image数据进行封装
+                    writer.write(example.SerializeToString())
+                    count=count+1
+
+
+                    # print("Q", qustion)
+                    # print("A", answer)
+                self.count = count
+                coord.request_stop()
+                coord.join(threads)
+
+        # newSamples = []
+        self._printStats()
+
 
         # 1st step: Iterate over all words and add filters the sentences
         # according to the sentence lengths
-        for inputWords, targetWords in tqdm(self.trainingSamples, desc='Filter sentences:', leave=False):
-            inputWords = mergeSentences(inputWords, fromEnd=True)
-            targetWords = mergeSentences(targetWords, fromEnd=False)
-
-            newSamples.append([inputWords, targetWords])
-
-        words = []
+        # for inputWords, targetWords in tqdm(self.trainingSamples, desc='Filter sentences:', leave=False):
+        #     inputWords = mergeSentences(inputWords, fromEnd=True)
+        #     targetWords = mergeSentences(targetWords, fromEnd=False)
+        #
+        #     newSamples.append([inputWords, targetWords])
+        # words = []
 
         # WARNING: DO NOT FILTER THE UNKNOWN TOKEN !!! Only word which has count==0 ?
 
@@ -405,16 +590,57 @@ class TextData:
                     valid = True
             return valid
 
+        def replace_words_t(words):
+            valid = False  # Filter empty sequences
+            for i, w in enumerate(words):
+                words[i] = newMapping[w]
+                if words[i] == self.unknownToken:  # Also filter if only contains unknown tokens
+                    valid = False
+                    return valid
+                else:
+                    valid= True
+            return valid
+
         self.trainingSamples.clear()
 
-        for inputWords, targetWords in tqdm(newSamples, desc='Replace ids:', leave=False):
-            valid = True
-            valid &= replace_words(inputWords)
-            valid &= replace_words(targetWords)
-            valid &= targetWords.count(self.unknownToken) == 0  # Filter target with out-of-vocabulary target words ?
 
-            if valid:
-                self.trainingSamples.append([inputWords, targetWords])  # TODO: Could replace list by tuple
+        datasetExist = os.path.isfile(self.filteredSamplesDataPath)
+        if not datasetExist:
+            Q, A = self.decodeQA(dst)
+            with tf.Session() as sess, tf.python_io.TFRecordWriter(self.filteredSamplesDataPath) as writer, \
+                    tqdm(total=self.count, desc='Filter 2') as pbar:  # 开始一个会话
+                init_op = tf.global_variables_initializer()
+                sess.run(init_op)
+                coord = tf.train.Coordinator()
+                threads = tf.train.start_queue_runners(coord=coord)
+                count = 0
+                for i in range(self.count):
+                    pbar.update(1)
+                    qustion, answer = sess.run([Q, A])  # 在会话中取出image和label
+                    valid = True
+                    valid &= replace_words(qustion)
+                    valid &= replace_words_t(answer)
+                    # valid &= answer.count(self.unknownToken) == 0
+                    if valid:
+                        example = tf.train.Example(features=tf.train.Features(feature={
+                            "Q": tf.train.Feature(int64_list=tf.train.Int64List(value=qustion)),
+                            'A': tf.train.Feature(int64_list=tf.train.Int64List(value=answer))
+                        }))  # example对象对label和image数据进行封装
+                        writer.write(example.SerializeToString())
+                        count = count + 1
+
+                self.count = count
+                coord.request_stop()
+                coord.join(threads)
+
+        # for inputWords, targetWords in tqdm(newSamples, desc='Replace ids:', leave=False):
+        #     valid = True
+        #     valid &= replace_words(inputWords)
+        #     valid &= replace_words(targetWords)
+        #     valid &= targetWords.count(self.unknownToken) == 0  # Filter target with out-of-vocabulary target words ?
+        #
+        #     if valid:
+        #         self.trainingSamples.append([inputWords, targetWords])  # TODO: Could replace list by tuple
 
         self.idCount.clear()  # Not usefull anymore. Free data
 
@@ -429,38 +655,45 @@ class TextData:
         self.eosToken = self.getWordId('<eos>')  # End of sequence
         self.unknownToken = self.getWordId('<unknown>')  # Word dropped from vocabulary
 
+        count = self.linecount(conversations)
+
         # Preprocessing data
 
-        for conversation in tqdm(conversations, desc='Extract conversations'):
-            self.extractConversation(conversation)
+        with open(conversations, 'r', encoding='utf-8') as f,\
+                tf.python_io.TFRecordWriter(self.fullSamplesDataPath) as writer ,\
+                tqdm(total=count, desc='Conversation',leave=False) as pbar:
+            inputWords = None
+            targetWords = None
+            index = 0
+            for line in f:
+                pbar.update(1)
+                if line.startswith("//") or len(line.strip())==0:
+                    index = 0
+                    inputWords = None
+                    targetWords = None
+                    continue
+                if index % 2 == 0:
+                    inputWords = self.extractText(line)
+                else:
+                    targetWords = self.extractText(line)
+                index=index+1
+                if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
+                    example = tf.train.Example(features=tf.train.Features(feature={
+                        "Q": tf.train.Feature(int64_list=tf.train.Int64List(value=inputWords)),
+                        'A': tf.train.Feature(int64_list=tf.train.Int64List(value=targetWords))
+                    }))  # example对象对label和image数据进行封装
+                    writer.write(example.SerializeToString())
+                    self.count=self.count+1
+
+
 
         # The dataset will be saved in the same order it has been extracted
 
-    def extractConversation(self, conversation):
-        """Extract the sample lines from the conversations
-        Args:
-            conversation (Obj): a conversation object containing the lines to extract
-        """
 
-        if self.args.skipLines:  # WARNING: The dataset won't be regenerated if the choice evolve (have to use the datasetTag)
-            step = 2
-        else:
-            step = 1
+    def linecount(self,path):
+        count = int(subprocess.check_output(["wc",path]).split()[0])
+        return count
 
-        # Iterate over all the lines of the conversation
-        for i in tqdm_wrap(
-            range(0, len(conversation['lines']) - 1, step),  # We ignore the last line (no answer for it)
-            desc='Conversation',
-            leave=False
-        ):
-            inputLine  = conversation['lines'][i]
-            targetLine = conversation['lines'][i+1]
-
-            inputWords  = self.extractText(inputLine['text'])
-            targetWords = self.extractText(targetLine['text'])
-
-            if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
-                self.trainingSamples.append([inputWords, targetWords])
 
     def extractText(self, line):
         """Extract the words from a sample lines
@@ -483,8 +716,9 @@ class TextData:
                 tempWords.append(self.getWordId(token))  # Create the vocabulary and the training sentences
 
             sentences.append(tempWords)
-
-        return sentences
+        if (len(sentences)>0):
+            return sentences[0]
+        return None
 
     def getWordId(self, word, create=True):
         """Get the id of the word (and add it to the dictionary if not existing). If the word does not exist and
