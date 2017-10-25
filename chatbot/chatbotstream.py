@@ -294,7 +294,7 @@ class ChatbotStream:
         sess.run(iterator.initializer)
 
         offset = self.globStep%self.textData.getSampleSize()
-        for i in xrange(offset):
+        for i in range(offset):
             _=sess.run(next_batch)
 
         np.set_printoptions(threshold=np.inf)
