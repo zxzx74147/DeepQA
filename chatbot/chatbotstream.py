@@ -351,8 +351,8 @@ class ChatbotStream:
                             # Output training status
                             if self.globStep % 100 == 0:
                                 perplexity = math.exp(lossSum/100) if loss < 300 else float("inf")
-                                tqdm.write(
-                                    "----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, lossSum/100, perplexity))
+                                tqdm.write("----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, lossSum/100, perplexity))
+                                lossSum=0
 
                             # Checkpoint
                             if self.globStep % self.args.saveEvery == 0:
