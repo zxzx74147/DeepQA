@@ -8,7 +8,7 @@ import os
 
 chatbotPath = "/".join(settings.BASE_DIR.split('/')[:-1])
 sys.path.append(chatbotPath)
-from chatbot import chatbot
+from chatbot import chatbotstream
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class ChatbotManager(AppConfig):
         """
         if not ChatbotManager.bot:
             logger.info('Initializing bot...')
-            ChatbotManager.bot = chatbot.Chatbot()
+            ChatbotManager.bot = chatbotstream.ChatbotStream()
             ChatbotManager.bot.main(['--modelTag', 'server', '--test', 'daemon', '--rootDir', chatbotPath])
         else:
             logger.info('Bot already initialized.')
