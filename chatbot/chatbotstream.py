@@ -292,7 +292,7 @@ class ChatbotStream:
         iterator, next_batch = self.textData.getBatches()
 
         sess.run(iterator.initializer)
-
+        np.set_printoptions(threshold=np.inf)
         print('Start training (press Ctrl+C to save and exit)...')
         for e in range(self.args.numEpochs):
             print()
@@ -314,15 +314,24 @@ class ChatbotStream:
                         T_T.append(T[0])
                         W_T.append(W[0])
                         batch_size += 1
-                        count += 1
                         if count == self.textData.getSampleSize():
                             print("End of training dataset.")
                             break
                         if batch_size >= self.args.batchSize:
-                            E_T = np.transpose(np.asarray(E_T))
-                            T_T = np.transpose(np.asarray(T_T))
-                            D_T = np.transpose(np.asarray(D_T))
-                            W_T = np.transpose(np.asarray(W_T))
+                            E_T = np.transpose(np.asarray(E_T)).tolist()
+                            T_T = np.transpose(np.asarray(T_T)).tolist()
+                            D_T = np.transpose(np.asarray(D_T)).tolist()
+                            W_T = np.transpose(np.asarray(W_T)).tolist()
+
+                            # if self.globStep == 0:
+                            #     print("ENCODER")
+                            #     print(E_T)
+                            #     print("DECODER")
+                            #     print(D_T)
+                            #     print("TARGET")
+                            #     print(T_T)
+                            #     print("WEIGHT")
+                            #     print(W_T)
                             this_batch = Batch()
                             this_batch.encoderSeqs = E_T
                             this_batch.decoderSeqs = D_T

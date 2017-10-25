@@ -270,11 +270,23 @@ class Chatbot:
                 tic = datetime.datetime.now()
                 for nextBatch in tqdm(batches, desc="Training"):
                     # Training pass
+
+                    # if self.globStep==0:
+                    #     print("ENCODER")
+                    #     print(nextBatch.encoderSeqs)
+                    #     print("DECODER")
+                    #     print(nextBatch.decoderSeqs)
+                    #     print("TARGET")
+                    #     print(nextBatch.targetSeqs)
+                    #     print("WEIGHT")
+                    #     print(nextBatch.weights)
                     ops, feedDict = self.model.step(nextBatch)
                     assert len(ops) == 2  # training, loss
                     _, loss, summary = sess.run(ops + (mergedSummaries,), feedDict)
                     self.writer.add_summary(summary, self.globStep)
                     self.globStep += 1
+
+
 
                     # Output training status
                     if self.globStep % 100 == 0:
