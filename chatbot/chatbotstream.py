@@ -299,82 +299,84 @@ class ChatbotStream:
 
         np.set_printoptions(threshold=np.inf)
         print('Start training (press Ctrl+C to save and exit)...')
-        for e in range(self.args.numEpochs):
-            print()
-            print("----- Epoch {}/{} ; (lr={}) -----".format(e + 1, self.args.numEpochs, self.args.learningRate))
+        try:  # If the user exit while training, we still try to save the model
+            for e in range(self.args.numEpochs):
+                print()
+                print("----- Epoch {}/{} ; (lr={}) -----".format(e + 1, self.args.numEpochs, self.args.learningRate))
 
-            tic = datetime.datetime.now()
-            count = 0
-            with tqdm(total=self.textData.getSampleSize() / self.args.batchSize, desc='train') as pbar:
-                try:
-                    E_T = []
-                    D_T = []
-                    T_T = []
-                    W_T = []
-                    batch_size = 0
-                    lossSum = 0;
-                    while (True):
-                        Q, D, T, W = sess.run(next_batch)
-                        E_T.append(Q[0][::-1])
-                        D_T.append(D[0])
-                        T_T.append(T[0])
-                        W_T.append(W[0])
-                        batch_size += 1
-                        count += 1
-                        # if count<10:
-                        #     print('Q: {}'.format(self.textData.sequence2str(Q[0].tolist(), clean=True)))
-                        #     print('A: {}'.format(self.textData.sequence2str(T[0].tolist(), clean=True)))
-                        if count == self.textData.getSampleSize():
-                            print("End of training dataset.")
-                            break
-                        if batch_size >= self.args.batchSize:
-                            E_T = np.transpose(np.asarray(E_T)).tolist()
-                            T_T = np.transpose(np.asarray(T_T)).tolist()
-                            D_T = np.transpose(np.asarray(D_T)).tolist()
-                            W_T = np.transpose(np.asarray(W_T)).tolist()
+                tic = datetime.datetime.now()
+                count = 0
+                with tqdm(total=self.textData.getSampleSize() / self.args.batchSize, desc='train') as pbar:
+                    try:
+                        E_T = []
+                        D_T = []
+                        T_T = []
+                        W_T = []
+                        batch_size = 0
+                        lossSum = 0;
+                        while (True):
+                            Q, D, T, W = sess.run(next_batch)
+                            E_T.append(Q[0][::-1])
+                            D_T.append(D[0])
+                            T_T.append(T[0])
+                            W_T.append(W[0])
+                            batch_size += 1
+                            count += 1
+                            # if count<10:
+                            #     print('Q: {}'.format(self.textData.sequence2str(Q[0].tolist(), clean=True)))
+                            #     print('A: {}'.format(self.textData.sequence2str(T[0].tolist(), clean=True)))
+                            if count == self.textData.getSampleSize():
+                                print("End of training dataset.")
+                                break
+                            if batch_size >= self.args.batchSize:
+                                E_T = np.transpose(np.asarray(E_T)).tolist()
+                                T_T = np.transpose(np.asarray(T_T)).tolist()
+                                D_T = np.transpose(np.asarray(D_T)).tolist()
+                                W_T = np.transpose(np.asarray(W_T)).tolist()
 
-                            # if self.globStep == 0:
-                            #     print("ENCODER")
-                            #     print(E_T)
-                            #     print("DECODER")
-                            #     print(D_T)
-                            #     print("TARGET")
-                            #     print(T_T)
-                            #     print("WEIGHT")
-                            #     print(W_T)
-                            this_batch = Batch()
-                            this_batch.encoderSeqs = E_T
-                            this_batch.decoderSeqs = D_T
-                            this_batch.targetSeqs = T_T
-                            this_batch.weights = W_T
-                            ops, feedDict = self.model.step(this_batch)
-                            assert len(ops) == 2  # training, loss
-                            _, loss, summary = sess.run(ops + (mergedSummaries,), feedDict)
-                            self.writer.add_summary(summary, self.globStep)
-                            self.globStep += 1
-                            lossSum+=float(loss)
-                            # Output training status
-                            if self.globStep % 100 == 0:
-                                perplexity = math.exp(lossSum/100) if loss < 300 else float("inf")
-                                tqdm.write("----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, lossSum/100, perplexity))
-                                lossSum=0
+                                # if self.globStep == 0:
+                                #     print("ENCODER")
+                                #     print(E_T)
+                                #     print("DECODER")
+                                #     print(D_T)
+                                #     print("TARGET")
+                                #     print(T_T)
+                                #     print("WEIGHT")
+                                #     print(W_T)
+                                this_batch = Batch()
+                                this_batch.encoderSeqs = E_T
+                                this_batch.decoderSeqs = D_T
+                                this_batch.targetSeqs = T_T
+                                this_batch.weights = W_T
+                                ops, feedDict = self.model.step(this_batch)
+                                assert len(ops) == 2  # training, loss
+                                _, loss, summary = sess.run(ops + (mergedSummaries,), feedDict)
+                                self.writer.add_summary(summary, self.globStep)
+                                self.globStep += 1
+                                lossSum+=float(loss)
+                                # Output training status
+                                if self.globStep % 100 == 0:
+                                    perplexity = math.exp(lossSum/100) if loss < 300 else float("inf")
+                                    tqdm.write("----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, lossSum/100, perplexity))
+                                    lossSum=0
 
-                            # Checkpoint
-                            if self.globStep % self.args.saveEvery == 0:
-                                self._saveSession(sess)
-                            E_T = []
-                            D_T = []
-                            T_T = []
-                            W_T = []
-                            batch_size = 0
-                            pbar.update(1)
-                            # print('E:' + ' '.join(str(x) for x in reversed(Q[0])))
-                            # print('D:'+' '.join(str(x) for x in D[0]))
-                            # print('T:' + ' '.join(str(x) for x in T[0]))
-                            # print('W:' + ' '.join(str(x) for x in W[0]))
-                except tf.errors.OutOfRangeError:
-                    print("End of training dataset.")
-
+                                # Checkpoint
+                                if self.globStep % self.args.saveEvery == 0:
+                                    self._saveSession(sess)
+                                E_T = []
+                                D_T = []
+                                T_T = []
+                                W_T = []
+                                batch_size = 0
+                                pbar.update(1)
+                                # print('E:' + ' '.join(str(x) for x in reversed(Q[0])))
+                                # print('D:'+' '.join(str(x) for x in D[0]))
+                                # print('T:' + ' '.join(str(x) for x in T[0]))
+                                # print('W:' + ' '.join(str(x) for x in W[0]))
+                    except tf.errors.OutOfRangeError:
+                        print("End of training dataset.")
+        except (KeyboardInterrupt, SystemExit):  # If the user press Ctrl+C while testing progress
+            print('Interruption detected, exiting the program...')
         # If restoring a model, restore the progression bar ? and current batch ?
 
 
