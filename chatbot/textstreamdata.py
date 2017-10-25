@@ -147,7 +147,80 @@ class TextStreamData:
 
 
 
+    def _createBatch(self, samples):
+        """Create a single batch from the list of sample. The batch size is automatically defined by the number of
+        samples given.
+        The inputs should already be inverted. The target should already have <go> and <eos>
+        Warning: This function should not make direct calls to args.batchSize !!!
+        Args:
+            samples (list<Obj>): a list of samples, each sample being on the form [input, target]
+        Return:
+            Batch: a batch object en
+        """
 
+        batch = Batch()
+        batchSize = len(samples)
+
+        # Create the batch tensor
+        for i in range(batchSize):
+            # Unpack the sample
+            sample = samples[i]
+            if not self.args.test and self.args.watsonMode:  # Watson mode: invert question and answer
+                sample = list(reversed(sample))
+            if not self.args.test and self.args.autoEncode:  # Autoencode: use either the question or answer for both input and output
+                k = random.randint(0, 1)
+                sample = (sample[k], sample[k])
+            # TODO: Why re-processed that at each epoch ? Could precompute that
+            # once and reuse those every time. Is not the bottleneck so won't change
+            # much ? and if preprocessing, should be compatible with autoEncode & cie.
+            batch.encoderSeqs.append(list(reversed(sample[0])))  # Reverse inputs (and not outputs), little trick as defined on the original seq2seq paper
+            batch.decoderSeqs.append([self.goToken] + sample[1] + [self.eosToken])  # Add the <go> and <eos> tokens
+            batch.targetSeqs.append(batch.decoderSeqs[-1][1:])  # Same as decoder, but shifted to the left (ignore the <go>)
+
+            # Long sentences should have been filtered during the dataset creation
+            assert len(batch.encoderSeqs[i]) <= self.args.maxLengthEnco
+            assert len(batch.decoderSeqs[i]) <= self.args.maxLengthDeco
+
+            # TODO: Should use tf batch function to automatically add padding and batch samples
+            # Add padding & define weight
+            batch.encoderSeqs[i]   = [self.padToken] * (self.args.maxLengthEnco  - len(batch.encoderSeqs[i])) + batch.encoderSeqs[i]  # Left padding for the input
+            batch.weights.append([1.0] * len(batch.targetSeqs[i]) + [0.0] * (self.args.maxLengthDeco - len(batch.targetSeqs[i])))
+            batch.decoderSeqs[i] = batch.decoderSeqs[i] + [self.padToken] * (self.args.maxLengthDeco - len(batch.decoderSeqs[i]))
+            batch.targetSeqs[i]  = batch.targetSeqs[i]  + [self.padToken] * (self.args.maxLengthDeco - len(batch.targetSeqs[i]))
+
+        # Simple hack to reshape the batch
+        encoderSeqsT = []  # Corrected orientation
+        for i in range(self.args.maxLengthEnco):
+            encoderSeqT = []
+            for j in range(batchSize):
+                encoderSeqT.append(batch.encoderSeqs[j][i])
+            encoderSeqsT.append(encoderSeqT)
+        batch.encoderSeqs = encoderSeqsT
+
+        decoderSeqsT = []
+        targetSeqsT = []
+        weightsT = []
+        for i in range(self.args.maxLengthDeco):
+            decoderSeqT = []
+            targetSeqT = []
+            weightT = []
+            for j in range(batchSize):
+                decoderSeqT.append(batch.decoderSeqs[j][i])
+                targetSeqT.append(batch.targetSeqs[j][i])
+                weightT.append(batch.weights[j][i])
+            decoderSeqsT.append(decoderSeqT)
+            targetSeqsT.append(targetSeqT)
+            weightsT.append(weightT)
+        batch.decoderSeqs = decoderSeqsT
+        batch.targetSeqs = targetSeqsT
+        batch.weights = weightsT
+
+        # # Debug
+        # self.printBatch(batch)  # Input inverted, padding should be correct
+        # print(self.sequence2str(samples[0][0]))
+        # print(self.sequence2str(samples[0][1]))  # Check we did not modified the original sample
+
+        return batch
 
     def getBatches(self):
         """Prepare the batches for the current epoch
