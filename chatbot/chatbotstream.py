@@ -28,7 +28,7 @@ import numpy as np
 import math
 
 from tqdm import tqdm  # Progress bar
-from tensorflow.python import debug as tf_debug
+from tensorflow.python import debug as tf_debug, xrange
 
 from chatbot.textdata import TextData
 from chatbot.model import Model
@@ -292,6 +292,11 @@ class ChatbotStream:
         iterator, next_batch = self.textData.getBatches()
 
         sess.run(iterator.initializer)
+
+        offset = self.globStep%self.textData.getSampleSize()
+        for i in xrange(offset):
+            _=sess.run(next_batch)
+
         np.set_printoptions(threshold=np.inf)
         print('Start training (press Ctrl+C to save and exit)...')
         for e in range(self.args.numEpochs):
