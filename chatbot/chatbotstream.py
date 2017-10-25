@@ -307,6 +307,7 @@ class ChatbotStream:
                     T_T = []
                     W_T = []
                     batch_size = 0
+                    lossSum = 0;
                     while (True):
                         Q, D, T, W = sess.run(next_batch)
                         E_T.append(Q[0][::-1])
@@ -346,12 +347,12 @@ class ChatbotStream:
                             _, loss, summary = sess.run(ops + (mergedSummaries,), feedDict)
                             self.writer.add_summary(summary, self.globStep)
                             self.globStep += 1
-
+                            lossSum+=float(loss)
                             # Output training status
                             if self.globStep % 100 == 0:
-                                perplexity = math.exp(float(loss)) if loss < 300 else float("inf")
+                                perplexity = math.exp(lossSum/100) if loss < 300 else float("inf")
                                 tqdm.write(
-                                    "----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, loss, perplexity))
+                                    "----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, lossSum/100, perplexity))
 
                             # Checkpoint
                             if self.globStep % self.args.saveEvery == 0:
