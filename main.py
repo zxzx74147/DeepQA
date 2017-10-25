@@ -27,6 +27,6 @@ from chatbot import chatbotstream
 
 
 if __name__ == "__main__":
-    chatbot = chatbot.Chatbot()
-    # chatbot = chatbotstream.ChatbotStream()
+    # chatbot = chatbot.Chatbot()
+    chatbot = chatbotstream.ChatbotStream()
     chatbot.main()
