@@ -120,14 +120,32 @@ class Model:
                 dtype=self.dtype
             )
 
-            def sampledSoftmax(labels, inputs):
+            # def sampledSoftmax(labels, inputs):
+            #     labels = tf.reshape(labels, [-1, 1])  # Add one dimension (nb of true classes, here 1)
+            #
+            #     # We need to compute the sampled_softmax_loss using 32bit floats to
+            #     # avoid numerical instabilities.
+            #     localWt     = tf.cast(outputProjection.W_t,             tf.float32)
+            #     localB      = tf.cast(outputProjection.b,               tf.float32)
+            #     localInputs = tf.cast(inputs,                           tf.float32)
+            #
+            #     return tf.cast(
+            #         tf.nn.sampled_softmax_loss(
+            #             localWt,  # Should have shape [num_classes, dim]
+            #             localB,
+            #             labels,
+            #             localInputs,
+            #             self.args.softmaxSamples,  # The number of classes to randomly sample per batch
+            #             self.textData.getVocabularySize()),  # The number of classes
+            #         self.dtype)
+            def sampledSoftmax(labels, logits):
                 labels = tf.reshape(labels, [-1, 1])  # Add one dimension (nb of true classes, here 1)
 
                 # We need to compute the sampled_softmax_loss using 32bit floats to
                 # avoid numerical instabilities.
                 localWt     = tf.cast(outputProjection.W_t,             tf.float32)
                 localB      = tf.cast(outputProjection.b,               tf.float32)
-                localInputs = tf.cast(inputs,                           tf.float32)
+                localInputs = tf.cast(logits,                           tf.float32)
 
                 return tf.cast(
                     tf.nn.sampled_softmax_loss(
@@ -168,8 +186,8 @@ class Model:
         # Define the network
         # Here we use an embedding model, it takes integer as input and convert them into word vector for
         # better word representation
-        decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq(
-        # decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq(
+        # decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq(
+        decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq(
             self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
             self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
             encoDecoCell,
