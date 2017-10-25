@@ -62,6 +62,7 @@ class TextStreamData:
         ('lightweight', LightweightData),
         ('baobao',BaobaoData),
         ('baobaowhisper', BaobaoWhisperStreamData),
+        ('baobaowhisperlite', BaobaoWhisperStreamData),
     ])
 
     @staticmethod
@@ -240,63 +241,6 @@ class TextStreamData:
         next_batch = iterator.get_next()
 
         return iterator,next_batch
-
-        # with tf.Session() as sess,tqdm(total=self.count, desc='Filter') as pbar:  # 开始一个会话
-        #     init_op = tf.global_variables_initializer()
-        #     sess.run(iterator.initializer, feed_dict={filenames: [self.filteredSamplesDataPath]})
-        #     try:
-        #         E_T = [[]]
-        #         D_T = [[]]
-        #         T_T = [[]]
-        #         W_T = [[]]
-        #         batch_size =0
-        #         while(True):
-        #             pbar.update(1)
-        #             Q, D,T,W = sess.run(next_batch)
-        #             E_T.append(reversed(Q[0]))
-        #             D_T.append(reversed(D[0]))
-        #             T_T.append(reversed(T[0]))
-        #             W_T.append(reversed(W[0]))
-        #             batch_size+=1
-        #             if batch_size>=self.args.batchSize:
-        #                 E_T=np.transpose(E_T)
-        #                 T_T = np.transpose(T_T)
-        #                 D_T = np.transpose(D_T)
-        #                 W_T = np.transpose(W_T)
-        #
-        #                 E_T = [[]]
-        #                 D_T = [[]]
-        #                 T_T = [[]]
-        #                 W_T = [[]]
-        #             # print('E:' + ' '.join(str(x) for x in reversed(Q[0])))
-        #             # print('D:'+' '.join(str(x) for x in D[0]))
-        #             # print('T:' + ' '.join(str(x) for x in T[0]))
-        #             # print('W:' + ' '.join(str(x) for x in W[0]))
-        #     except tf.errors.OutOfRangeError:
-        #         print("End of training dataset.")
-
-
-
-        # # Q_batch, A_batch = tf.train.shuffle_batch([Q, A], batch_size=self.args.batchSize,
-        # #                                                    capacity=self.count, min_after_dequeue=self.args.batchSize*10, num_threads=2)
-        # #
-        # # self.shuffle()
-        # #
-        # # batches = []
-        # #
-        # # def genNextSamples():
-        # #     """ Generator over the mini-batch training samples
-        # #     """
-        # #     for i in range(0, self.getSampleSize(), self.args.batchSize):
-        # #         yield self.trainingSamples[i:min(i + self.args.batchSize, self.getSampleSize())]
-        # #
-        # # # TODO: Should replace that by generator (better: by tf.queue)
-        # #
-        # # for samples in genNextSamples():
-        # #     batch = self._createBatch(samples)
-        # #     batches.append(batch)
-        # return iterator
-
     def getSampleSize(self):
         """Return the size of the dataset
         Return:
@@ -416,8 +360,8 @@ class TextStreamData:
 
 
     def decodeQAExample(self,example_proto):
-        features = {'Q': tf.VarLenFeature( tf.int64),
-                    'A': tf.VarLenFeature( tf.int64),}
+        features = {'Q': tf.VarLenFeature(tf.int64),
+                    'A': tf.VarLenFeature(tf.int64),}
         parsed_features = tf.parse_single_example(example_proto, features)
         Q=tf.sparse_tensor_to_dense(parsed_features["Q"])
         A=tf.sparse_tensor_to_dense(parsed_features["A"])

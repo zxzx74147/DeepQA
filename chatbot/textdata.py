@@ -60,6 +60,7 @@ class TextData:
         ('lightweight', LightweightData),
         ('baobao',BaobaoData),
         ('baobaowhisper', BaobaoDataWhisper),
+        ('baobaowhisperlite', BaobaoDataWhisper),
     ])
 
     @staticmethod
