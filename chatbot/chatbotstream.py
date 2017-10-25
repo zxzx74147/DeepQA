@@ -314,6 +314,7 @@ class ChatbotStream:
                         T_T.append(T[0])
                         W_T.append(W[0])
                         batch_size += 1
+                        count += 1
                         if count == self.textData.getSampleSize():
                             print("End of training dataset.")
                             break
