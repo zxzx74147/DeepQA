@@ -116,8 +116,8 @@ class TextStreamData:
         # Plot some stats:
         self._printStats()
 
-        if self.args.playDataset:
-            self.playDataset()
+        # if self.args.playDataset:
+        #     self.playDataset()
 
     def _printStats(self):
         print('Loaded {}: {} words, {} QA'.format(self.args.corpus, len(self.word2id), self.count))
