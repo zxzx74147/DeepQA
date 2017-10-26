@@ -294,8 +294,10 @@ class ChatbotStream:
         sess.run(iterator.initializer)
 
         offset = self.globStep*self.args.batchSize%self.textData.getSampleSize()
-        for i in range(offset):
-            _=sess.run(next_batch)
+        with tqdm(total=offset, desc='seek to...') as pbar:
+            for i in range(offset):
+                pbar.update(1)
+                _=sess.run(next_batch)
 
         np.set_printoptions(threshold=np.inf)
         print('Start training (press Ctrl+C to save and exit)...')
