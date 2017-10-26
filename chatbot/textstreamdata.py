@@ -234,7 +234,7 @@ class TextStreamData:
         # dataset = dataset.batch(self.args.batchSize)
 
         dataset = dataset.padded_batch(1, padded_shapes=([self.args.maxLengthEnco],[self.args.maxLengthDeco],[self.args.maxLengthDeco],[self.args.maxLengthDeco]),
-                                       padding_values=(self.padToken,self.padToken,self.padToken,0))
+                                       padding_values=(self.padToken,self.padToken,self.padToken,0.0))
         dataset = dataset.shuffle(buffer_size=10000)
         iterator = dataset.make_initializable_iterator()
 
@@ -372,10 +372,9 @@ class TextStreamData:
         targetSeq=tf.concat([A,self.EOS],0)
         # weight = tf.ones_like(targetSeq)
 
-        weight = tf.ones_like(targetSeq)
+        weight = tf.ones_like(targetSeq,dtype=tf.float32)
         sum_w =tf.reduce_sum(weight)
-        weight = tf.scalar_mul(sum_w,weight)
-        weight = tf.cast(weight, tf.int32)
+        weight = tf.scalar_mul(1.0/sum_w,weight)
         return Q,decoderSeq,targetSeq,weight
 
 
