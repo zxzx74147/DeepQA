@@ -218,7 +218,8 @@ class Model:
                 self.decoderTargets,
                 self.decoderWeights,
                 self.textData.getVocabularySize(),
-                softmax_loss_function= sampledSoftmax if outputProjection else None  # If None, use default SoftMax
+                softmax_loss_function= sampledSoftmax if outputProjection else None,  # If None, use default SoftMax
+                average_across_timesteps = False
             )
             tf.summary.scalar('loss', self.lossFct)  # Keep track of the cost
 
