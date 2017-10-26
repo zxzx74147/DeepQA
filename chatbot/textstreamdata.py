@@ -228,19 +228,19 @@ class TextStreamData:
             list<Batch>: Get a list of the batches for the next epoch
         """
         # filenames = tf.placeholder(tf.string, shape=[None])
-        dataset = tf.contrib.data.TFRecordDataset([self.filteredSamplesDataPath])
-        dataset = dataset.map(self.decodeQAExample)  # Parse the record into tensors.
-        dataset = dataset.repeat()  # Repeat the input indefinitely.
-        # dataset = dataset.batch(self.args.batchSize)
+        with tf.device('/cpu:0'):
+            dataset = tf.contrib.data.TFRecordDataset([self.filteredSamplesDataPath])
+            dataset = dataset.map(self.decodeQAExample)  # Parse the record into tensors.
+            dataset = dataset.repeat()  # Repeat the input indefinitely.
+            # dataset = dataset.batch(self.args.batchSize)
 
-        dataset = dataset.padded_batch(1, padded_shapes=([self.args.maxLengthEnco],[self.args.maxLengthDeco],[self.args.maxLengthDeco],[self.args.maxLengthDeco]),
-                                       padding_values=(self.padToken,self.padToken,self.padToken,0.0))
-        dataset = dataset.shuffle(buffer_size=10000)
-        iterator = dataset.make_initializable_iterator()
+            dataset = dataset.padded_batch(1, padded_shapes=([self.args.maxLengthEnco],[self.args.maxLengthDeco],[self.args.maxLengthDeco],[self.args.maxLengthDeco]),
+                                           padding_values=(self.padToken,self.padToken,self.padToken,0.0))
+            dataset = dataset.shuffle(buffer_size=10000)
+            iterator = dataset.make_initializable_iterator()
 
-        next_batch = iterator.get_next()
-
-        return iterator,next_batch
+            next_batch = iterator.get_next()
+            return iterator,next_batch
     def getSampleSize(self):
         """Return the size of the dataset
         Return:
