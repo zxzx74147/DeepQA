@@ -293,7 +293,7 @@ class ChatbotStream:
 
         sess.run(iterator.initializer)
 
-        offset = self.globStep%self.textData.getSampleSize()
+        offset = self.globStep*self.args.batchSize%self.textData.getSampleSize()
         for i in range(offset):
             _=sess.run(next_batch)
 
@@ -355,6 +355,8 @@ class ChatbotStream:
                                 self.globStep += 1
                                 lossSum+=float(loss)
                                 # Output training status
+
+                                pbar.update(1)
                                 if self.globStep % 100 == 0:
                                     perplexity = math.exp(lossSum/100) if loss < 300 else float("inf")
                                     tqdm.write("----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, lossSum/100, perplexity))
@@ -368,7 +370,6 @@ class ChatbotStream:
                                 T_T = []
                                 W_T = []
                                 batch_size = 0
-                                pbar.update(1)
                                 # print('E:' + ' '.join(str(x) for x in reversed(Q[0])))
                                 # print('D:'+' '.join(str(x) for x in D[0]))
                                 # print('T:' + ' '.join(str(x) for x in T[0]))
