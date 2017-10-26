@@ -335,7 +335,6 @@ class ChatbotStream:
                                 T_T = np.transpose(np.asarray(T_T)).tolist()
                                 D_T = np.transpose(np.asarray(D_T)).tolist()
                                 W_T = np.transpose(np.asarray(W_T)).tolist()
-
                                 # if self.globStep == 0:
                                 #     print("ENCODER")
                                 #     print(E_T)
