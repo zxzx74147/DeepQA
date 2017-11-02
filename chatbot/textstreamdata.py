@@ -31,6 +31,7 @@ import subprocess
 import tensorflow as tf
 
 from chatbot.corpus.baobaowhisperdata import BaobaoDataWhisper
+from chatbot.corpus.baobaowhisperfilterstreamdata import BaobaoWhisperFilterStreamData
 from chatbot.corpus.baobaowhisperstreamdata import BaobaoWhisperStreamData
 from chatbot.corpus.cornelldata import CornellData
 from chatbot.corpus.opensubsdata import OpensubsData
@@ -63,6 +64,7 @@ class TextStreamData:
         ('baobao',BaobaoData),
         ('baobaowhisper', BaobaoWhisperStreamData),
         ('baobaowhisperlite', BaobaoWhisperStreamData),
+        ('baobaowhisperfilter', BaobaoWhisperFilterStreamData),
     ])
 
     @staticmethod
