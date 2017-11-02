@@ -52,7 +52,7 @@ class BaobaoWhisperFilterStreamData:
             fileName (str): file to load
         """
         fileName = [f for f in listdir(folderName) if (isfile(join(folderName, f)) and f.endswith('txt'))]
-        fileName[0]='whisper.txt'
+        fileName[0]='whisper_train.txt'
         src_file = folderName+os.sep+fileName[0]
         dst_file = folderName+os.sep+fileName[0]+'.chat'
         self.conversations = dst_file
