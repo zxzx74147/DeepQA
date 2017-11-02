@@ -375,8 +375,8 @@ class TextStreamData:
         # weight = tf.ones_like(targetSeq)
 
         weight = tf.ones_like(targetSeq,dtype=tf.float32)
-        sum_w =tf.reduce_sum(weight)
-        weight = tf.scalar_mul(1.0 / sum_w, weight)
+        # sum_w =tf.reduce_sum(weight)
+        # weight = tf.scalar_mul(1.0 / sum_w, weight)
         # weight = tf.scalar_mul(tf.log(sum_w)/sum_w,weight)
         return Q,decoderSeq,targetSeq,weight
 

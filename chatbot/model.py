@@ -217,7 +217,7 @@ class Model:
                 decoderOutputs,
                 self.decoderTargets,
                 self.decoderWeights,
-                average_across_timesteps=False,
+                # average_across_timesteps=False,
                 # self.textData.getVocabularySize(),
                 softmax_loss_function= sampledSoftmax if outputProjection else None,  # If None, use default SoftMax
 
