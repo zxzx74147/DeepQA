@@ -29,6 +29,6 @@ import linecache
 from chatbot.textstreamdata import TextStreamData
 
 if __name__ == "__main__":
-    args=['--corpus','baobaowhisperfilter']
+    args=['--corpus','baobaowhisperfilter','--maxLength','16','--vocabularySize','30000']
     chatbot = ChatbotStream()
     chatbot.main2(args)

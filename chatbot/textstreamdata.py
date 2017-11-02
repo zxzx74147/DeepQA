@@ -461,18 +461,17 @@ class TextStreamData:
                 for i in range(self.count):
                     pbar.update(1)
                     qustion, answer = sess.run([Q, A])  # 在会话中取出image和label
-                    if len(qustion)>10:
+                    if len(qustion)>self.args.maxLengthEnco:
                         for w in qustion:
                             self.idCount[w] -= 1
-                    if len(answer)>10:
+                    if len(answer)>self.args.maxLengthEnco:
                         for w in answer:
                             self.idCount[w] -= 1
 
                      # Filter wrong samples (if one of the list is empty)
-                    if qustion.size>10:
-                        qustion=[]
-                    if answer.size>10:
-                        answer=[]
+                    if qustion.size>self.args.maxLengthEnco or answer.size>self.args.maxLengthEnco:
+                        continue
+
                     example = tf.train.Example(features=tf.train.Features(feature={
                             "Q": tf.train.Feature(int64_list=tf.train.Int64List(value=qustion)),
                             'A': tf.train.Feature(int64_list=tf.train.Int64List(value=answer))
@@ -625,6 +624,7 @@ class TextStreamData:
                     continue
                 if index % 2 == 0:
                     inputWords = self.extractText(line)
+                    targetWords = None
                 else:
                     targetWords = self.extractText(line)
                 index=index+1
