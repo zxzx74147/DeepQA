@@ -39,8 +39,11 @@ class BaobaoWhisperFilterStreamData:
         Args:
             lightweightFile (string): file containing our lightweight-formatted corpus
         """
-        self.conversations = None
-        self.loadLines(baobaoFile )
+
+        file = baobaoFile+os.sep + 'whisper_train.txt'
+        self.conversations = self.loadLines(file)
+        # file = baobaoFile + os.sep + 'whisper_dev.txt'
+        # self.test_conversations = self.loadLines(file)
 
     def linecount(self,path):
         count = int(subprocess.check_output(["wc",path]).split()[0])
@@ -51,13 +54,12 @@ class BaobaoWhisperFilterStreamData:
         Args:
             fileName (str): file to load
         """
-        fileName = [f for f in listdir(folderName) if (isfile(join(folderName, f)) and f.endswith('txt'))]
-        fileName[0]='whisper_train.txt'
-        src_file = folderName+os.sep+fileName[0]
-        dst_file = folderName+os.sep+fileName[0]+'.chat'
-        self.conversations = dst_file
+
+        src_file = folderName
+        dst_file = folderName+'.chat'
+
         if os.path.isfile(dst_file):
-            return
+            return dst_file
         count = self.linecount(src_file)
         print(count)
         filtrate = re.compile(u'[^\u4E00-\u9FA5A-Za-z0-9_\s]')
@@ -89,6 +91,11 @@ class BaobaoWhisperFilterStreamData:
                     line = emoji_pattern.sub(r'', line)  # 过滤emoji
                     fo.write(line+'\n')
                     # fo.write("//new_chat" + '\n')
+        return dst_file
     def getConversations(self):
         print('path='+self.conversations)
         return self.conversations
+
+    def getTestConversations(self):
+        print('path='+self.test_conversations)
+        return self.test_conversations

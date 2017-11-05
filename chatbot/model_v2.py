@@ -69,7 +69,7 @@ class ProjectionOp:
             return tf.matmul(X, self.W) + self.b
 
 
-class Model:
+class ModelV2:
     """
     Implementation of a seq2seq model.
     Architecture:
@@ -99,7 +99,7 @@ class Model:
         self.lossFct = None
         self.optOp = None
         self.outputs = None  # Outputs of the network, list of probability for each words
-
+        self.lossTest = None
         # Construct the graphs
         self.buildNetwork()
 
@@ -159,18 +159,24 @@ class Model:
 
         # Creation of the rnn cell
         def create_rnn_cell():
-            encoDecoCell = tf.contrib.rnn.BasicLSTMCell(  # Or GRUCell, LSTMCell(args.hiddenSize)
+            encoDecoCellTest = tf.contrib.rnn.BasicLSTMCell(  # Or GRUCell, LSTMCell(args.hiddenSize)
                 self.args.hiddenSize,
             )
-            if not self.args.test:  # TODO: Should use a placeholder instead
-                encoDecoCell = tf.contrib.rnn.DropoutWrapper(
-                    encoDecoCell,
-                    input_keep_prob=1.0,
-                    output_keep_prob=self.args.dropout
-                )
-            return encoDecoCell
+
+            encoDecoCell = tf.contrib.rnn.DropoutWrapper(
+                encoDecoCellTest,
+                input_keep_prob=1.0,
+                output_keep_prob=self.args.dropout
+            )
+            return encoDecoCellTest,encoDecoCell
+
+        encoDecoCellTest, encoDecoCell = create_rnn_cell()
+
         encoDecoCell = tf.contrib.rnn.MultiRNNCell(
-            [create_rnn_cell() for _ in range(self.args.numLayers)],
+            [encoDecoCell for _ in range(self.args.numLayers)],
+        )
+        encoDecoCellTest = tf.contrib.rnn.MultiRNNCell(
+            [encoDecoCellTest for _ in range(self.args.numLayers)],
         )
 
         # Network input (placeholders)
@@ -186,8 +192,8 @@ class Model:
         # Define the network
         # Here we use an embedding model, it takes integer as input and convert them into word vector for
         # better word representation
-        decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq(
-        # decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq(
+        # decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq(
+        decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq(
             self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
             self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
             encoDecoCell,
@@ -195,43 +201,65 @@ class Model:
             self.textData.getVocabularySize(),  # Both encoder and decoder have the same number of class
             embedding_size=self.args.embeddingSize,  # Dimension of each word
             output_projection=outputProjection.getWeights() if outputProjection else None,
-            feed_previous=bool(self.args.test)  # When we test (self.args.test), we use previous output as next input (feed_previous)
+            feed_previous=False  # When we test (self.args.test), we use previous output as next input (feed_previous)
         )
+
+        decoderOutputsTest, _ = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq(
+            self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
+            self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
+            encoDecoCellTest,
+            self.textData.getVocabularySize(),
+            self.textData.getVocabularySize(),  # Both encoder and decoder have the same number of class
+            embedding_size=self.args.embeddingSize,  # Dimension of each word
+            output_projection=outputProjection.getWeights() if outputProjection else None,
+            feed_previous=True  # When we test (self.args.test), we use previous output as next input (feed_previous)
+        )
+
+
 
         # TODO: When the LSTM hidden size is too big, we should project the LSTM output into a smaller space (4086 => 2046): Should speed up
         # training and reduce memory usage. Other solution, use sampling softmax
 
         # For testing only
-        if self.args.test:
-            if not outputProjection:
-                self.outputs = decoderOutputs
-            else:
-                self.outputs = [outputProjection(output) for output in decoderOutputs]
 
+        if not outputProjection:
+            self.outputs = decoderOutputs
+        else:
+            self.outputs = [outputProjection(output) for output in decoderOutputs]
+        self.lossTest = tf.contrib.legacy_seq2seq.sequence_loss(
+            decoderOutputs,
+            self.decoderTargets,
+            self.decoderWeights,
+            # average_across_timesteps=False,
+            # self.textData.getVocabularySize(),
+            softmax_loss_function= sampledSoftmax if outputProjection else None,  # If None, use default SoftMax
+
+        )
+        tf.summary.scalar('loss_test', self.lossTest)  # Keep track of the cost
             # TODO: Attach a summary to visualize the output
 
         # For training only
-        else:
-            # Finally, we define the loss function
-            self.lossFct = tf.contrib.legacy_seq2seq.sequence_loss(
-                decoderOutputs,
-                self.decoderTargets,
-                self.decoderWeights,
-                # average_across_timesteps=False,
-                # self.textData.getVocabularySize(),
-                softmax_loss_function= sampledSoftmax if outputProjection else None,  # If None, use default SoftMax
 
-            )
-            tf.summary.scalar('loss', self.lossFct)  # Keep track of the cost
+        # Finally, we define the loss function
+        self.lossFct = tf.contrib.legacy_seq2seq.sequence_loss(
+            decoderOutputs,
+            self.decoderTargets,
+            self.decoderWeights,
+            # average_across_timesteps=False,
+            # self.textData.getVocabularySize(),
+            softmax_loss_function= sampledSoftmax if outputProjection else None,  # If None, use default SoftMax
 
-            # Initialize the optimizer
-            opt = tf.train.AdamOptimizer(
-                learning_rate=self.args.learningRate,
-                beta1=0.9,
-                beta2=0.999,
-                epsilon=1e-08
-            )
-            self.optOp = opt.minimize(self.lossFct)
+        )
+        tf.summary.scalar('loss', self.lossFct)  # Keep track of the cost
+
+        # Initialize the optimizer
+        opt = tf.train.AdamOptimizer(
+            learning_rate=self.args.learningRate,
+            beta1=0.9,
+            beta2=0.999,
+            epsilon=1e-08
+        )
+        self.optOp = opt.minimize(self.lossFct)
 
     def step(self, batch):
         """ Forward/training step operation.
