@@ -577,6 +577,9 @@ class TextStreamData:
                             "Q": tf.train.Feature(int64_list=tf.train.Int64List(value=qustion)),
                             'A': tf.train.Feature(int64_list=tf.train.Int64List(value=answer))
                         }))  # example对象对label和image数据进行封装
+                        # if count < 100:
+                        #     tqdm.write("Q:" + self.sequence2str(qustion.tolist()))
+                        #     tqdm.write("A:" + self.sequence2str(answer.tolist()))
                         writer.write(example.SerializeToString())
                         count = count + 1
 
@@ -618,24 +621,29 @@ class TextStreamData:
             index = 0
             for line in f:
                 pbar.update(1)
+                index = index + 1
                 if line.startswith("//") or len(line.strip())==0:
-                    index = 0
                     inputWords = None
                     targetWords = None
                     continue
-                if index % 2 == 0:
+                if index % 2 == 1:
                     inputWords = self.extractText(line)
                     targetWords = None
                 else:
                     targetWords = self.extractText(line)
-                index=index+1
-                if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
-                    example = tf.train.Example(features=tf.train.Features(feature={
-                        "Q": tf.train.Feature(int64_list=tf.train.Int64List(value=inputWords)),
-                        'A': tf.train.Feature(int64_list=tf.train.Int64List(value=targetWords))
-                    }))  # example对象对label和image数据进行封装
-                    writer.write(example.SerializeToString())
-                    self.count=self.count+1
+                    if inputWords and targetWords:  # Filter wrong samples (if one of the list is empty)
+                        example = tf.train.Example(features=tf.train.Features(feature={
+                            "Q": tf.train.Feature(int64_list=tf.train.Int64List(value=inputWords)),
+                            'A': tf.train.Feature(int64_list=tf.train.Int64List(value=targetWords))
+                        }))  # example对象对label和image数据进行封装
+                        # if index<100:
+                        #     tqdm.write("Q:"+self.sequence2str(inputWords))
+                        #     tqdm.write("A:" + self.sequence2str(targetWords))
+                        writer.write(example.SerializeToString())
+                        self.count=self.count+1
+                        inputWords = None
+                        targetWords = None
+
 
 
 
