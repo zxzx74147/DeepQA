@@ -18,3 +18,4 @@ def chat(request):
         logger.info(' {} -> {}'.format( question, answer))
         return JsonResponse(response_data)
     return JsonResponse(response_data)
+

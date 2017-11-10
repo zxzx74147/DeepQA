@@ -749,6 +749,11 @@ class TextStreamData:
 
         return self.detokenize(sentence)
 
+    def ishan(self,con):
+        # for python 3.x
+        # sample: ishan('一') == True, ishan('我&&你') == False
+        return all('\u4e00' <= char <= '\u9fff' for char in con)
+
     def detokenize(self, tokens):
         """Slightly cleaner version of joining with spaces.
         Args:
@@ -758,7 +763,7 @@ class TextStreamData:
         """
         return ''.join([
             ' ' + t if not t.startswith('\'') and
-                       t not in string.punctuation
+                       t not in string.punctuation and not self.ishan(t)
                     else t
             for t in tokens]).strip().capitalize()
 
