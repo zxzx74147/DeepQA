@@ -42,7 +42,7 @@ class BaobaoWhisperFilterStreamData:
 
         file = baobaoFile+os.sep + 'whisper_train.txt'
         self.conversations = None
-        self.file = baobaoFile
+        self.file = file
         # file = baobaoFile + os.sep + 'whisper_dev.txt'
         # self.test_conversations = self.loadLines(file)
 
@@ -94,9 +94,10 @@ class BaobaoWhisperFilterStreamData:
                     # fo.write("//new_chat" + '\n')
         return dst_file
     def getConversations(self):
-        print('path='+self.conversations)
+
         if self.conversations==None:
-            self.loadLines(self.file)
+            self.conversations = self.loadLines(self.file)
+        print('path=' + self.conversations)
         return self.conversations
 
     def getTestConversations(self):
