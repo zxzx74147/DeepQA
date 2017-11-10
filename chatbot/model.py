@@ -225,13 +225,17 @@ class Model:
             tf.summary.scalar('loss', self.lossFct)  # Keep track of the cost
 
             # Initialize the optimizer
+            global_step = tf.Variable(0, trainable=False)
+            starter_learning_rate = 0.002
+            learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
+                                                       5000, 0.96, staircase=True)
             opt = tf.train.AdamOptimizer(
-                learning_rate=self.args.learningRate,
+                learning_rate=learning_rate,
                 beta1=0.9,
                 beta2=0.999,
                 epsilon=1e-08
             )
-            self.optOp = opt.minimize(self.lossFct)
+            self.optOp = opt.minimize(self.lossFct,global_step=global_step)
 
     def step(self, batch):
         """ Forward/training step operation.
