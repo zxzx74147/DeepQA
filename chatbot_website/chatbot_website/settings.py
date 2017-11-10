@@ -20,12 +20,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/1.10/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
+os.environ['CHATBOT_SECRET_KEY']='myhug'
 SECRET_KEY = os.environ['CHATBOT_SECRET_KEY']
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['zxzx74147.oicp.net','192.168.2.242']
+ALLOWED_HOSTS = ['localhost','zxzx74147.oicp.net','192.168.2.242']
 
 
 # Application definition
