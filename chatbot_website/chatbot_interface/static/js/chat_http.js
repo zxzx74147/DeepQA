@@ -20,7 +20,7 @@ $(function() {
             if (message_val) {
                 // Send the message
                 $.getJSON({
-                    url: 'chat?question='+message_val,
+                    url: 'chatapi?question='+message_val,
                     success: function(data){
                         chat_zone.prepend(
                             $("<p class='answer'></p>").text('Bot: ' + data.answer)
