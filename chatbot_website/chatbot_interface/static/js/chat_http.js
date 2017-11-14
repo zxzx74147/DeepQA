@@ -4,12 +4,12 @@ $(function() {
 
     var chat_zone = $("#chat_zone");
     
-    chatsock.onmessage = function(message) {
-        var data = JSON.parse(message.data);
-        chat_zone.prepend(
-            $("<p class='answer'></p>").text('Bot: ' + data.message)
-        );
-    };
+    // chatsock.onmessage = function(message) {
+    //     var data = JSON.parse(message.data);
+    //     chat_zone.prepend(
+    //         $("<p class='answer'></p>").text('Bot: ' + data.message)
+    //     );
+    // };
 
     $("#chat_form").on("submit", function(event) {
 
