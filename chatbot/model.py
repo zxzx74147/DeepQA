@@ -230,7 +230,7 @@ class Model:
             learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
                                                        5000, 0.96, staircase=True)
             opt = tf.train.AdamOptimizer(
-                learning_rate=learning_rate,
+                learning_rate=self.args.learningRate,
                 beta1=0.9,
                 beta2=0.999,
                 epsilon=1e-08
