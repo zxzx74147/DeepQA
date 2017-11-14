@@ -6,5 +6,5 @@ from .chatbotmanager import ChatbotManager
 
 urlpatterns = [
     url(r'^$', views.mainView),
-    url(r'^chat$', httpserv.chat),
+    url(r'^chatapi$', httpserv.chat),
 ]
