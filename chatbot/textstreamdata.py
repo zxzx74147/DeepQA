@@ -238,7 +238,7 @@ class TextStreamData:
 
             dataset = dataset.padded_batch(1, padded_shapes=([self.args.maxLengthEnco],[self.args.maxLengthDeco],[self.args.maxLengthDeco],[self.args.maxLengthDeco]),
                                            padding_values=(self.padToken,self.padToken,self.padToken,0.0))
-            dataset = dataset.shuffle(buffer_size=10000)
+            dataset = dataset.shuffle(buffer_size=40000)
             iterator = dataset.make_initializable_iterator()
 
             next_batch = iterator.get_next()
