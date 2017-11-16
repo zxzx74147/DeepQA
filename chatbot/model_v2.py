@@ -99,7 +99,7 @@ class ModelV2:
         self.lossFct = None
         self.optOp = None
         self.outputs = None  # Outputs of the network, list of probability for each words
-        self.lossTest = None
+        self.lossDev = None
         # Construct the graphs
         self.buildNetwork()
 
@@ -193,7 +193,7 @@ class ModelV2:
         # Here we use an embedding model, it takes integer as input and convert them into word vector for
         # better word representation
         # decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq(
-        decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq(
+        decoderOutputs, states = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq(
             self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
             self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
             encoDecoCell,
@@ -204,7 +204,7 @@ class ModelV2:
             feed_previous=False  # When we test (self.args.test), we use previous output as next input (feed_previous)
         )
 
-        decoderOutputsTest, _ = tf.contrib.legacy_seq2seq.embedding_rnn_seq2seq(
+        decoderOutputsTest, _ = tf.contrib.legacy_seq2seq.embedding_attention_seq2seq(
             self.encoderInputs,  # List<[batch=?, inputDim=1]>, list of size args.maxLength
             self.decoderInputs,  # For training, we force the correct output (feed_previous=False)
             encoDecoCellTest,
@@ -226,7 +226,8 @@ class ModelV2:
             self.outputs = decoderOutputs
         else:
             self.outputs = [outputProjection(output) for output in decoderOutputs]
-        self.lossTest = tf.contrib.legacy_seq2seq.sequence_loss(
+
+        self.lossDev = tf.contrib.legacy_seq2seq.sequence_loss(
             decoderOutputs,
             self.decoderTargets,
             self.decoderWeights,
@@ -235,7 +236,7 @@ class ModelV2:
             softmax_loss_function= sampledSoftmax if outputProjection else None,  # If None, use default SoftMax
 
         )
-        tf.summary.scalar('loss_test', self.lossTest)  # Keep track of the cost
+        tf.summary.scalar('loss_dev', self.lossDev)  # Keep track of the cost
             # TODO: Attach a summary to visualize the output
 
         # For training only
@@ -250,7 +251,7 @@ class ModelV2:
             softmax_loss_function= sampledSoftmax if outputProjection else None,  # If None, use default SoftMax
 
         )
-        tf.summary.scalar('loss', self.lossFct)  # Keep track of the cost
+        tf.summary.scalar('loss_train', self.lossFct)  # Keep track of the cost
 
         # Initialize the optimizer
         opt = tf.train.AdamOptimizer(
