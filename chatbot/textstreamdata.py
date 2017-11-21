@@ -26,7 +26,7 @@ import os  # Checking file existance
 import random
 import string
 import collections
-import  jieba
+import jieba
 import subprocess
 import tensorflow as tf
 
@@ -44,11 +44,13 @@ from chatbot.corpus.baobaodata import BaobaoData
 class Batch:
     """Struct containing batches info
     """
+
     def __init__(self):
         self.encoderSeqs = []
         self.decoderSeqs = []
         self.targetSeqs = []
         self.weights = []
+
 
 class TextStreamData:
     """Dataset class
@@ -61,7 +63,7 @@ class TextStreamData:
         ('scotus', ScotusData),
         ('ubuntu', UbuntuData),
         ('lightweight', LightweightData),
-        ('baobao',BaobaoData),
+        ('baobao', BaobaoData),
         ('baobaowhisper', BaobaoWhisperStreamData),
         ('baobaowhisperlite', BaobaoWhisperStreamData),
         ('baobaowhisperfilter', BaobaoWhisperFilterStreamData),
@@ -136,7 +138,7 @@ class TextStreamData:
     def makeLighter(self, ratioDataset):
         """Only keep a small fraction of the dataset, given by the ratio
         """
-        #if not math.isclose(ratioDataset, 1.0):
+        # if not math.isclose(ratioDataset, 1.0):
         #    self.shuffle()  # Really ?
         #    print('WARNING: Ratio feature not implemented !!!')
         pass
@@ -146,8 +148,6 @@ class TextStreamData:
         """
         print('Shuffling the dataset...')
         random.shuffle(self.trainingSamples)
-
-
 
     def _createBatch(self, samples):
         """Create a single batch from the list of sample. The batch size is automatically defined by the number of
@@ -175,9 +175,11 @@ class TextStreamData:
             # TODO: Why re-processed that at each epoch ? Could precompute that
             # once and reuse those every time. Is not the bottleneck so won't change
             # much ? and if preprocessing, should be compatible with autoEncode & cie.
-            batch.encoderSeqs.append(list(reversed(sample[0])))  # Reverse inputs (and not outputs), little trick as defined on the original seq2seq paper
+            batch.encoderSeqs.append(list(reversed(
+                sample[0])))  # Reverse inputs (and not outputs), little trick as defined on the original seq2seq paper
             batch.decoderSeqs.append([self.goToken] + sample[1] + [self.eosToken])  # Add the <go> and <eos> tokens
-            batch.targetSeqs.append(batch.decoderSeqs[-1][1:])  # Same as decoder, but shifted to the left (ignore the <go>)
+            batch.targetSeqs.append(
+                batch.decoderSeqs[-1][1:])  # Same as decoder, but shifted to the left (ignore the <go>)
 
             # Long sentences should have been filtered during the dataset creation
             assert len(batch.encoderSeqs[i]) <= self.args.maxLengthEnco
@@ -185,10 +187,14 @@ class TextStreamData:
 
             # TODO: Should use tf batch function to automatically add padding and batch samples
             # Add padding & define weight
-            batch.encoderSeqs[i]   = [self.padToken] * (self.args.maxLengthEnco  - len(batch.encoderSeqs[i])) + batch.encoderSeqs[i]  # Left padding for the input
-            batch.weights.append([1.0] * len(batch.targetSeqs[i]) + [0.0] * (self.args.maxLengthDeco - len(batch.targetSeqs[i])))
-            batch.decoderSeqs[i] = batch.decoderSeqs[i] + [self.padToken] * (self.args.maxLengthDeco - len(batch.decoderSeqs[i]))
-            batch.targetSeqs[i]  = batch.targetSeqs[i]  + [self.padToken] * (self.args.maxLengthDeco - len(batch.targetSeqs[i]))
+            batch.encoderSeqs[i] = [self.padToken] * (self.args.maxLengthEnco - len(batch.encoderSeqs[i])) + \
+                                   batch.encoderSeqs[i]  # Left padding for the input
+            batch.weights.append(
+                [1.0] * len(batch.targetSeqs[i]) + [0.0] * (self.args.maxLengthDeco - len(batch.targetSeqs[i])))
+            batch.decoderSeqs[i] = batch.decoderSeqs[i] + [self.padToken] * (
+            self.args.maxLengthDeco - len(batch.decoderSeqs[i]))
+            batch.targetSeqs[i] = batch.targetSeqs[i] + [self.padToken] * (
+            self.args.maxLengthDeco - len(batch.targetSeqs[i]))
 
         # Simple hack to reshape the batch
         encoderSeqsT = []  # Corrected orientation
@@ -235,14 +241,23 @@ class TextStreamData:
             dataset = dataset.map(self.decodeQAExample)  # Parse the record into tensors.
             dataset = dataset.repeat()  # Repeat the input indefinitely.
             # dataset = dataset.batch(self.args.batchSize)
-
-            dataset = dataset.padded_batch(1, padded_shapes=([self.args.maxLengthEnco],[self.args.maxLengthDeco],[self.args.maxLengthDeco],[self.args.maxLengthDeco]),
-                                           padding_values=(self.padToken,self.padToken,self.padToken,0.0))
-            dataset = dataset.shuffle(buffer_size=40000)
+            dataset = dataset.shuffle(buffer_size=50000)
+            dataset = dataset.padded_batch(self.args.batchSize, padded_shapes=(
+            # dataset = dataset.padded_batch(1, padded_shapes=(
+            [self.args.maxLengthEnco], [self.args.maxLengthDeco], [self.args.maxLengthDeco], [self.args.maxLengthDeco]),
+                                           padding_values=(self.padToken, self.padToken, self.padToken, 0.0))
             iterator = dataset.make_initializable_iterator()
 
             next_batch = iterator.get_next()
-            return iterator,next_batch
+            # Q, D, T, W = next_batch
+            # Q = tf.reverse(Q, -1)
+            # Q = tf.transpose(Q)
+            # D = tf.transpose(D)
+            # T = tf.transpose(T)
+            # W = tf.transpose(W)
+            # next_batch = Q, D, T, W
+            return iterator, next_batch
+
     def getSampleSize(self):
         """Return the size of the dataset
         Return:
@@ -285,42 +300,42 @@ class TextStreamData:
             self.saveDataset(self.filteredSamplesPath)
         else:
             self.loadDataset(self.filteredSamplesPath)
-        # datasetExist = os.path.isfile(self.filteredSamplesPath)
-        # if not datasetExist:  # First time we load the database: creating all files
-        #     print('Training samples not found. Creating dataset...')
-        #
-        #     datasetExist = os.path.isfile(self.fullSamplesPath)  # Try to construct the dataset from the preprocessed entry
-        #     if not datasetExist:
-        #         print('Constructing full dataset...')
-        #
-        #         optional = ''
-        #         if self.args.corpus == 'lightweight':
-        #             if not self.args.datasetTag:
-        #                 raise ValueError('Use the --datasetTag to define the lightweight file to use.')
-        #             optional = os.sep + self.args.datasetTag  # HACK: Forward the filename
-        #
-        #         # Corpus creation
-        #         corpusData = TextSteamData.availableCorpus[self.args.corpus](self.corpusDir + optional)
-        #         self.createFullCorpus(corpusData.getConversations())
-        #         self.saveDataset(self.fullSamplesPath)
-        #     else:
-        #         self.loadDataset(self.fullSamplesPath)
-        #     self._printStats()
-        #
-        #     print('Filtering words (vocabSize = {} and wordCount > {})...'.format(
-        #         self.args.vocabularySize,
-        #         self.args.filterVocab
-        #     ))
-        #     self.filterFromFull()  # Extract the sub vocabulary for the given maxLength and filterVocab
-        #
-        #     # Saving
-        #     print('Saving dataset...')
-        #     self.saveDataset(self.filteredSamplesPath)  # Saving tf samples
-        # else:
+            # datasetExist = os.path.isfile(self.filteredSamplesPath)
+            # if not datasetExist:  # First time we load the database: creating all files
+            #     print('Training samples not found. Creating dataset...')
+            #
+            #     datasetExist = os.path.isfile(self.fullSamplesPath)  # Try to construct the dataset from the preprocessed entry
+            #     if not datasetExist:
+            #         print('Constructing full dataset...')
+            #
+            #         optional = ''
+            #         if self.args.corpus == 'lightweight':
+            #             if not self.args.datasetTag:
+            #                 raise ValueError('Use the --datasetTag to define the lightweight file to use.')
+            #             optional = os.sep + self.args.datasetTag  # HACK: Forward the filename
+            #
+            #         # Corpus creation
+            #         corpusData = TextSteamData.availableCorpus[self.args.corpus](self.corpusDir + optional)
+            #         self.createFullCorpus(corpusData.getConversations())
+            #         self.saveDataset(self.fullSamplesPath)
+            #     else:
+            #         self.loadDataset(self.fullSamplesPath)
+            #     self._printStats()
+            #
+            #     print('Filtering words (vocabSize = {} and wordCount > {})...'.format(
+            #         self.args.vocabularySize,
+            #         self.args.filterVocab
+            #     ))
+            #     self.filterFromFull()  # Extract the sub vocabulary for the given maxLength and filterVocab
+            #
+            #     # Saving
+            #     print('Saving dataset...')
+            #     self.saveDataset(self.filteredSamplesPath)  # Saving tf samples
+            # else:
             # self.loadDataset(self.filteredSamplesPath)
 
 
-        # assert self.padToken == 0
+            # assert self.padToken == 0
 
     def saveDataset(self, filename):
         """Save samples to file
@@ -333,7 +348,7 @@ class TextStreamData:
                 'word2id': self.word2id,
                 'id2word': self.id2word,
                 'idCount': self.idCount,
-                'count':self.count,
+                'count': self.count,
                 # 'trainingSamples': self.trainingSamples
             }
             pickle.dump(data, handle, -1)  # Using the highest protocol available
@@ -360,25 +375,24 @@ class TextStreamData:
             self.GO = tf.constant([self.goToken])
             self.EOS = tf.constant([self.eosToken])
 
-
-    def decodeQAExample(self,example_proto):
+    def decodeQAExample(self, example_proto):
         features = {'Q': tf.VarLenFeature(tf.int64),
-                    'A': tf.VarLenFeature(tf.int64),}
+                    'A': tf.VarLenFeature(tf.int64), }
         parsed_features = tf.parse_single_example(example_proto, features)
-        Q=tf.sparse_tensor_to_dense(parsed_features["Q"])
-        A=tf.sparse_tensor_to_dense(parsed_features["A"])
-        Q=tf.cast(Q, tf.int32)
-        A=tf.cast(A, tf.int32)
+        Q = tf.sparse_tensor_to_dense(parsed_features["Q"])
+        A = tf.sparse_tensor_to_dense(parsed_features["A"])
+        Q = tf.cast(Q, tf.int32)
+        A = tf.cast(A, tf.int32)
 
-        decoderSeq=tf.concat([self.GO,A,self.EOS],0)
-        targetSeq=tf.concat([A,self.EOS],0)
+        decoderSeq = tf.concat([self.GO, A, self.EOS], 0)
+        targetSeq = tf.concat([A, self.EOS], 0)
         # weight = tf.ones_like(targetSeq)
 
-        weight = tf.ones_like(targetSeq,dtype=tf.float32)
+        weight = tf.ones_like(targetSeq, dtype=tf.float32)
         # sum_w =tf.reduce_sum(weight)
         # weight = tf.scalar_mul(1.0 / sum_w, weight)
         # weight = tf.scalar_mul(tf.log(sum_w)/sum_w,weight)
-        return Q,decoderSeq,targetSeq,weight
+        return Q, decoderSeq, targetSeq, weight
 
 
         # # encoderSeq = list(reversed(Q))
@@ -396,7 +410,7 @@ class TextStreamData:
 
         # return encoderSeq,decoderSeq,weight,targetSeq
 
-    def decodeQA(self,filename):
+    def decodeQA(self, filename):
         reader = tf.TFRecordReader()
 
         filename_queue = tf.train.string_input_producer([filename])  # 生成一个queue队列
@@ -404,8 +418,8 @@ class TextStreamData:
         _, serialized_example = reader.read(filename_queue)  # 返回文件名和文件
         features = tf.parse_single_example(serialized_example,
                                            features={
-                                               'Q': tf.VarLenFeature( tf.int64),
-                                               'A': tf.VarLenFeature( tf.int64),
+                                               'Q': tf.VarLenFeature(tf.int64),
+                                               'A': tf.VarLenFeature(tf.int64),
                                            })
 
         Q = tf.sparse_tensor_to_dense(features['Q'])  # 在流中抛出Q张量
@@ -447,13 +461,12 @@ class TextStreamData:
                         self.idCount[w] -= 1
             return merged
 
-
-        dst = self.filteredSamplesDataPath+".temp"
+        dst = self.filteredSamplesDataPath + ".temp"
         datasetExist = os.path.isfile(dst)
         if not datasetExist:
             Q, A = self.decodeQA(self.fullSamplesDataPath)
-            with tf.Session() as sess,tf.python_io.TFRecordWriter(dst) as writer ,\
-                    tqdm(total=self.count,desc='Filter') as pbar:  # 开始一个会话
+            with tf.Session() as sess, tf.python_io.TFRecordWriter(dst) as writer, \
+                    tqdm(total=self.count, desc='Filter') as pbar:  # 开始一个会话
                 init_op = tf.global_variables_initializer()
                 sess.run(init_op)
                 coord = tf.train.Coordinator()
@@ -462,23 +475,23 @@ class TextStreamData:
                 for i in range(self.count):
                     pbar.update(1)
                     qustion, answer = sess.run([Q, A])  # 在会话中取出image和label
-                    if len(qustion)>self.args.maxLengthEnco:
+                    if len(qustion) > self.args.maxLengthEnco:
                         for w in qustion:
                             self.idCount[w] -= 1
-                    if len(answer)>self.args.maxLengthEnco:
+                    if len(answer) > self.args.maxLengthEnco:
                         for w in answer:
                             self.idCount[w] -= 1
 
-                     # Filter wrong samples (if one of the list is empty)
-                    if qustion.size>self.args.maxLengthEnco or answer.size>self.args.maxLengthEnco:
+                            # Filter wrong samples (if one of the list is empty)
+                    if qustion.size > self.args.maxLengthEnco or answer.size > self.args.maxLengthEnco:
                         continue
 
                     example = tf.train.Example(features=tf.train.Features(feature={
-                            "Q": tf.train.Feature(int64_list=tf.train.Int64List(value=qustion)),
-                            'A': tf.train.Feature(int64_list=tf.train.Int64List(value=answer))
+                        "Q": tf.train.Feature(int64_list=tf.train.Int64List(value=qustion)),
+                        'A': tf.train.Feature(int64_list=tf.train.Int64List(value=answer))
                     }))  # example对象对label和image数据进行封装
                     writer.write(example.SerializeToString())
-                    count=count+1
+                    count = count + 1
 
 
                     # print("Q", qustion)
@@ -489,7 +502,6 @@ class TextStreamData:
 
         # newSamples = []
         self._printStats()
-
 
         # 1st step: Iterate over all words and add filters the sentences
         # according to the sentence lengths
@@ -549,11 +561,10 @@ class TextStreamData:
                     valid = False
                     return valid
                 else:
-                    valid= True
+                    valid = True
             return valid
 
         self.trainingSamples.clear()
-
 
         datasetExist = os.path.isfile(self.filteredSamplesDataPath)
         if not datasetExist:
@@ -613,16 +624,16 @@ class TextStreamData:
 
         # Preprocessing data
 
-        with open(conversations, 'r', encoding='utf-8') as f,\
-                tf.python_io.TFRecordWriter(self.fullSamplesDataPath) as writer ,\
-                tqdm(total=count, desc='Conversation',leave=False) as pbar:
+        with open(conversations, 'r', encoding='utf-8') as f, \
+                tf.python_io.TFRecordWriter(self.fullSamplesDataPath) as writer, \
+                tqdm(total=count, desc='Conversation', leave=False) as pbar:
             inputWords = None
             targetWords = None
             index = 0
             for line in f:
                 pbar.update(1)
                 index = index + 1
-                if line.startswith("//") or len(line.strip())==0:
+                if line.startswith("//") or len(line.strip()) == 0:
                     inputWords = None
                     targetWords = None
                     continue
@@ -640,20 +651,18 @@ class TextStreamData:
                         #     tqdm.write("Q:"+self.sequence2str(inputWords))
                         #     tqdm.write("A:" + self.sequence2str(targetWords))
                         writer.write(example.SerializeToString())
-                        self.count=self.count+1
+                        self.count = self.count + 1
                         inputWords = None
                         targetWords = None
 
 
 
 
-        # The dataset will be saved in the same order it has been extracted
+                        # The dataset will be saved in the same order it has been extracted
 
-
-    def linecount(self,path):
-        count = int(subprocess.check_output(["wc",path]).split()[0])
+    def linecount(self, path):
+        count = int(subprocess.check_output(["wc", path]).split()[0])
         return count
-
 
     def extractText(self, line):
         """Extract the words from a sample lines
@@ -676,7 +685,7 @@ class TextStreamData:
                 tempWords.append(self.getWordId(token))  # Create the vocabulary and the training sentences
 
             sentences.append(tempWords)
-        if (len(sentences)>0):
+        if (len(sentences) > 0):
             return sentences[0]
         return None
 
@@ -719,7 +728,8 @@ class TextStreamData:
             print('Encoder: {}'.format(self.batchSeq2str(batch.encoderSeqs, seqId=i)))
             print('Decoder: {}'.format(self.batchSeq2str(batch.decoderSeqs, seqId=i)))
             print('Targets: {}'.format(self.batchSeq2str(batch.targetSeqs, seqId=i)))
-            print('Weights: {}'.format(' '.join([str(weight) for weight in [batchWeight[i] for batchWeight in batch.weights]])))
+            print('Weights: {}'.format(
+                ' '.join([str(weight) for weight in [batchWeight[i] for batchWeight in batch.weights]])))
 
     def sequence2str(self, sequence, clean=False, reverse=False):
         """Convert a list of integer into a human readable string
@@ -749,7 +759,7 @@ class TextStreamData:
 
         return self.detokenize(sentence)
 
-    def ishan(self,con):
+    def ishan(self, con):
         # for python 3.x
         # sample: ishan('一') == True, ishan('我&&你') == False
         return all('\u4e00' <= char <= '\u9fff' for char in con)
@@ -764,7 +774,7 @@ class TextStreamData:
         return ''.join([
             ' ' + t if not t.startswith('\'') and
                        t not in string.punctuation and not self.ishan(t)
-                    else t
+            else t
             for t in tokens]).strip().capitalize()
 
     def batchSeq2str(self, batchSeq, seqId=0, **kwargs):

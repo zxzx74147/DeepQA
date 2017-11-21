@@ -32,3 +32,5 @@ if __name__ == "__main__":
     args=['--corpus','baobaowhisperfilter','--maxLength','16','--vocabularySize','30000']
     chatbot = ChatbotStream()
     chatbot.main2(args)
+
+
