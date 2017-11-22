@@ -29,6 +29,7 @@ import collections
 import jieba
 import subprocess
 import tensorflow as tf
+import re
 
 from chatbot.corpus.baobaowhisperdata import BaobaoDataWhisper
 from chatbot.corpus.baobaowhisperfilterstreamdata import BaobaoWhisperFilterStreamData
@@ -68,6 +69,15 @@ class TextStreamData:
         ('baobaowhisperlite', BaobaoWhisperStreamData),
         ('baobaowhisperfilter', BaobaoWhisperFilterStreamData),
     ])
+
+    filtrate = re.compile(u'[^\u4E00-\u9FA5A-Za-z0-9_\s]')
+    emoji_pattern = re.compile(u"(\ud83d[\ude00-\ude4f])|"  # emoticons
+                               u"(\ud83c[\udf00-\uffff])|"  # symbols & pictographs (1 of 2)
+                               u"(\ud83d[\u0000-\uddff])|"  # symbols & pictographs (2 of 2)
+                               u"(\ud83d[\ude80-\udeff])|"  # transport & map symbols
+                               u"(\ud83c[\udde0-\uddff])"  # flags (iOS)
+                               "+", flags=re.UNICODE)
+
 
     @staticmethod
     def corpusChoices():
@@ -237,11 +247,12 @@ class TextStreamData:
         """
         # filenames = tf.placeholder(tf.string, shape=[None])
         with tf.device('/cpu:0'):
-            dataset = tf.contrib.data.TFRecordDataset([self.filteredSamplesDataPath])
-            dataset = dataset.map(self.decodeQAExample)  # Parse the record into tensors.
+            dataset = tf.data.TFRecordDataset([self.filteredSamplesDataPath])
+            dataset = dataset.map(self.decodeQAExample,num_parallel_calls=3).prefetch(512) # Parse the record into tensors.
             dataset = dataset.repeat()  # Repeat the input indefinitely.
             # dataset = dataset.batch(self.args.batchSize)
             dataset = dataset.shuffle(buffer_size=50000)
+
             dataset = dataset.padded_batch(self.args.batchSize, padded_shapes=(
             # dataset = dataset.padded_batch(1, padded_shapes=(
             [self.args.maxLengthEnco], [self.args.maxLengthDeco], [self.args.maxLengthDeco], [self.args.maxLengthDeco]),
@@ -801,7 +812,8 @@ class TextStreamData:
 
         if sentence == '':
             return None
-
+        sentence = self.filtrate.sub(r'', sentence)  # 过滤掉标点符号
+        sentence = self.emoji_pattern.sub(r'', sentence)  # 过滤emoji
         sentence = ' '.join(jieba.cut(sentence))
         # First step: Divide the sentence in token
         tokens = nltk.word_tokenize(sentence)
