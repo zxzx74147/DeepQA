@@ -203,6 +203,7 @@ class Model:
 
         # For testing only
         if self.args.test:
+
             if not outputProjection:
                 self.outputs = decoderOutputs
             else:
