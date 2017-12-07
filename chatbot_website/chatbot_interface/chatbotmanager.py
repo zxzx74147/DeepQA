@@ -39,7 +39,7 @@ class ChatbotManager(AppConfig):
             logger.info('Initializing bot...')
             ChatbotManager.bot = chatbotstream.ChatbotStream()
             # ChatbotManager.bot.main(['--modelTag', 'server','--device','cpu', '--test', 'daemon', '--rootDir', chatbotPath])
-            ChatbotManager.bot.main(['--modelTag', 'server',  '--test', 'daemon', '--rootDir', chatbotPath])
+            ChatbotManager.bot.main(['--modelTag', 'server',  '--test', 'daemon', '--rootDir', chatbotPath,'--beam-size', '3','--beam-search'])
         else:
             logger.info('Bot already initialized.')
 
