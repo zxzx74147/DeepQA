@@ -817,7 +817,7 @@ class TextStreamData:
         sentence = ' '.join(jieba.cut(sentence))
         # First step: Divide the sentence in token
         tokens = nltk.word_tokenize(sentence)
-        if len(tokens) > self.args.maxLength:
+        if len(tokens) > self.args.maxLength or len(tokens) < 1:
             return None
 
         # Second step: Convert the token in word ids
